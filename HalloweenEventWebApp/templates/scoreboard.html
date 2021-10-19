@@ -1,0 +1,15 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="scoreboard">
+    <div class="w3-container events">
+        <hr>
+        <div class="w3-cell-top-score">
+            <div class="w3-cell w3-container">
+                <h3 class="w3-cell-top-score-text">Top Score: <span class="topScore">{{topScore}}</span></h3>
+            </div>
+        </div>
+        <hr>
+        {{scoreboard|safe}}
+    </div>
+</div>
+{% endblock %}

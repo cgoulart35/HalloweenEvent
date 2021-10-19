@@ -1,0 +1,23 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="participate" >
+    <h3 class="welcome">Welcome to The Long Night!</h3>
+    <div class="instructions">
+        <ol>
+            <li>You will be emailed your own QR code.</li>
+            <li>Scan as many other players' QR codes as you can to fight them once.</li>
+            <li>The random winner of a fight will get 2 points and the loser will get 1 point.</li>
+            <li>The player with the most points at the end of the night by {{shutdownTime}} wins.</li>
+            <li>You will also be sent a summary at the end of the night of who you interacted with!</li>
+            <li>Sign up below to participate.</li>
+        </ol>
+    </div>
+    <div class="forms">
+        <form action = "{{url_for('views.participate')}}" method = "post">
+            <p><input class="input" type = text name = name placeholder="Display Name"></p>
+            <p><input class="input" type = email name = email placeholder="Email"></p>
+            <p><input class="button" type = submit value = "Sign Up"></p>
+        </form>
+     </div>
+</div>
+{% endblock %}

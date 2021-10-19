@@ -1,0 +1,112 @@
+@font-face {
+    font-family: GOT;
+    src: url(GOT.ttf);
+}
+body{
+    max-width:100vw;
+    max-height:100vh;
+}
+.header{
+    text-align: center;
+}
+.header-text-top{
+    font-family: GOT;
+    font-size: x-large;
+    word-spacing: 5px;
+}
+.header-text-bottom{
+    font-family: GOT;
+    font-size: small;
+    word-spacing: 4px;
+}
+.nav-button-text{
+    font-family: GOT;
+    font-size: large;
+    word-spacing: 5px;
+}
+.w3-circle{
+    width: 75%;    
+}
+.participate{
+    background-color: rgba(9, 255, 0, 1);
+    border: 6px solid rgba(201, 0, 205, 1);
+}
+.login{
+    background-color: rgba(9, 255, 0, 1);
+    border: 6px solid rgba(201, 0, 205, 1);
+}
+.welcome{
+    text-align: center;
+}
+.instructions{
+    border: 5px solid rgba(201, 0, 205, 1);
+    background-color: black;
+    color: yellow;
+    margin: auto;
+    width: 75%;
+    text-align: left;
+}
+.log-back-in{
+    border: 5px solid rgba(201, 0, 205, 1);
+    background-color: black;
+    color: yellow;
+    margin: auto;
+    width: 75%;
+    text-align: center;
+}
+.forms{
+    background-color: rgba(9, 255, 0, 1);
+    text-align: center;
+}
+.scoreboard{
+    background-color: rgba(9, 255, 0, 1);
+    border: 6px solid rgba(201, 0, 205, 1);
+}
+.w3-cell-row{
+    background-color: black;
+    color: yellow;
+    border: 6px solid rgba(201, 0, 205, 1);
+    margin: auto;
+    width: 75%;
+    text-align: left;
+}
+.w3-cell-top-score{
+    background-color: yellow;
+    color: black;
+    border: 6px solid rgba(201, 0, 205, 1);
+    margin: auto;
+    width: 75%;
+    text-align: left;
+}
+.w3-cell-top-score-text{
+    font-family: GOT;
+    font-size: x-large;
+    word-spacing: 5px;
+}
+.topScore{
+    font-family: "Segoe UI",Arial,sans-serif;
+    font-size: xx-large;
+}
+.youWon{
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+.youDied{
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+.niceTry{
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+.footer{
+    text-align: center;
+}
+.footer-text{
+    font-family: GOT;
+    font-size: x-large;
+    word-spacing: 5px;
+}

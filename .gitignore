@@ -1,0 +1,8 @@
+Shared/__pycache__/
+HalloweenEventWebApp/__pycache__/
+
+Logs/
+QR Codes/
+
+Shared/serviceAccountKey.json
+Shared/shared.ini.pi

@@ -1,0 +1,15 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="login" >
+    <h3 class="welcome">Welcome to The Long Night!</h3>
+    <div class="log-back-in">
+        <p>Did you already sign up to participate?<br>Log back in below!<p>
+    </div>
+    <div class="forms">
+        <form action = "{{url_for('views.login')}}" method = "post">
+            <p><input class="input" type = email name = email placeholder="Email"></p>
+            <p><input class="button" type = submit value = "Log In"></p>
+        </form>
+     </div>
+</div>
+{% endblock %}
