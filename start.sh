@@ -2,5 +2,5 @@
 
 cd ~/Code/GoulartEvents/HalloweenEvent
 
-python 'HalloweenEventApi/api.py' &
-python 'HalloweenEventWebApp/app.py' &
+python3 'HalloweenEventApi/api.py' &
+python3 'HalloweenEventWebApp/app.py' &
