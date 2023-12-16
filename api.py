@@ -1,84 +1,88 @@
 #region IMPORTS
-import json
-import logging
-import importlib.util
 import pathlib
 import os
+import logging
+import sys
+import json
 from datetime import datetime
-from configparser import ConfigParser
+from hypercorn.logging import AccessLogAtoms
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, abort, request
+from flask import Flask, abort, send_from_directory, request
 from flask_restful import Api, Resource
 from flask_cors import CORS
+
+from src.common import queries
+from src.api.properties import APIPropertiesManager
+from src.common.firebase import FirebaseService
 #endregion
 
-# get parent directory and dependencies
-parentDir = str(pathlib.Path(__file__).parent.parent.absolute())
-parentDir = parentDir.replace("\\",'/')
-
-spec = importlib.util.spec_from_file_location('shared', parentDir + '/Shared/functions.py')
-functions = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(functions)
-
-spec = importlib.util.spec_from_file_location('shared', parentDir + '/Shared/queries.py')
-queries = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(queries)
-
-# get configuration variables
-apiConfig = ConfigParser()
-apiConfig.read('HalloweenEventApi/api.ini')
-sharedConfig = functions.buildSharedConfig(parentDir)
-
-shutdownTime = sharedConfig['properties']['scheduledShutdownTime']
-firebaseConfigJson = sharedConfig['properties']['firebaseConfigJson']
-firebaseAuthEmail = sharedConfig['properties']['firebaseAuthEmail']
-firebaseAuthPassword = sharedConfig['properties']['firebaseAuthPassword']
-webAppHost = apiConfig['properties']['webAppHost']
-emailHost = apiConfig['properties']['emailHost']
-emailPort = apiConfig['properties']['emailPort']
-emailSender = apiConfig['properties']['emailSender']
-emailPassword = apiConfig['properties']['emailPassword']
-
-# create and configure logger
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        if record.args != ():
+            if isinstance(record.args, AccessLogAtoms):
+                return super().format(record)
+            argList = []
+            for arg in record.args:
+                if arg is None:
+                    argList.append('')
+                else:
+                    argList.append(arg)
+            fullMsg = record.msg % (tuple(argList))
+        else:
+            fullMsg = record.msg
+        escapedMsg = fullMsg.replace('\\', '\\\\').replace('"', '\\"')
+        record.msg = escapedMsg
+        record.args = ()
+        return super().format(record)
+    
+# create log folder if it doesn't exist
 if not os.path.exists('Logs'):
     os.mkdir('Logs')
-LOG_FORMAT = "%(levelname)s %(asctime)s - %(message)s"
-logging.basicConfig(filename = parentDir + '/Logs/HalloweenEventApi.log', level = logging.INFO, format = LOG_FORMAT)
 
-# initialize firebase and database
-firebase = functions.buildFirebase(firebaseConfigJson)
-db = firebase.database()
-auth = firebase.auth()
-user = auth.sign_in_with_email_and_password(firebaseAuthEmail, firebaseAuthPassword)
+# create log handlers and assign custom formatter
+parentDir = str(pathlib.Path(__file__).parent.absolute()).replace("\\",'/')
+fileHandler = logging.FileHandler(filename = parentDir + '/Logs/HalloweenEventApi.log')
+stdoutHandler = logging.StreamHandler(sys.stdout)
+customFormatter = CustomFormatter('{"level":"%(levelname)s","time":"%(asctime)s","message":"%(message)s","name":"%(name)s"}')
+fileHandler.setFormatter(customFormatter)
+stdoutHandler.setFormatter(customFormatter)
+handlers = [fileHandler, stdoutHandler]
+
+# initialize logger
+logging.basicConfig(handlers = handlers, 
+                    level = logging.INFO)
+logger = logging.getLogger()
+
+# start property manager and get properties
+APIPropertiesManager.startPropertyManager()
+logger.setLevel(APIPropertiesManager.LOG_LEVEL)
+
+# start firebase scheduler
+FirebaseService.startFirebaseScheduler(APIPropertiesManager.FIREBASE_CONFIG_JSON)
 
 # Flask REST API
 app = Flask(__name__)
 cors = CORS(app, resources={r"*": {"origins": "*"}})
 api = Api(app)
 
-# create event scheduler for refreshing auth token and shutdown
-def refreshToken():
-    global user
-    user = auth.refresh(user['refreshToken'])
-
+# create event scheduler for shutdown
 def shutDownApplication():
     try:
-        queries.emailResults(db, user['idToken'], emailHost, emailPort, emailSender, emailPassword)
+        queries.emailResults()
     except Exception:
         logging.error("Error emailing results.")
-    os.system(parentDir + "/stop.sh")
+    os.system("kill -15 1")
 
 sched = BackgroundScheduler(daemon=True)
-sched.add_job(refreshToken, 'interval', minutes = 30)
-sched.add_job(shutDownApplication, 'date', run_date = datetime.strptime(shutdownTime, "%m/%d/%y %I:%M:%S %p"))
+sched.add_job(shutDownApplication, 'date', run_date = datetime.strptime(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
 sched.start()
 
 class Scoreboard(Resource):
     def get(self):
         try:
             # get latest scoreboard history
-            topScore = queries.getTopScore(db, user['idToken'])
-            scoreboard = queries.getScoreboard(db, user['idToken'])
+            topScore = queries.getTopScore()
+            scoreboard = queries.getScoreboard()
             return {"topScore": topScore, "scoreboard": scoreboard}
         except:
             abort(400, "Error getting latest scoreboard.")
@@ -105,7 +109,7 @@ class Fight(Resource):
             if isInvalid:
                 raise Exception
             errorMsg = "No fight occured."
-            fight = queries.performFight(db, user['idToken'], value["scannedUserKey"], value["scannerUserKey"], time)
+            fight = queries.performFight(value["scannedUserKey"], value["scannerUserKey"], time)
             return fight
         except:
             abort(400, errorMsg)
@@ -129,7 +133,7 @@ class Users(Resource):
             if isInvalid:
                 raise Exception
             errorMsg = "No user added."
-            userKey = queries.addParticipant(db, user['idToken'], shutdownTime, webAppHost, emailHost, emailPort, emailSender, emailPassword, value["name"], value["email"])
+            userKey = queries.addParticipant(value["name"], value["email"])
             return userKey
         except:
             abort(400, errorMsg)
@@ -151,7 +155,7 @@ class Login(Resource):
             if isInvalid:
                 raise Exception
             errorMsg = "No user logged in."
-            userKey = queries.getParticipantKey(db, user['idToken'], value["email"])
+            userKey = queries.getParticipantKey(value["email"])
             return userKey
         except:
             abort(400, errorMsg)
@@ -160,5 +164,9 @@ api.add_resource(Scoreboard, '/HalloweenEvent/Scoreboard/')
 api.add_resource(Fight, '/HalloweenEvent/Fight/')
 api.add_resource(Users, '/HalloweenEvent/Users/')
 api.add_resource(Login, '/HalloweenEvent/Login/')
-app.add_url_rule('/favicon.ico', view_func = lambda: functions.favicon(parentDir))
-app.run(host='0.0.0.0', port=5003)
+app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentDir + '/src/common', 'favicon-pumpkin.ico'))
+app.run(host='0.0.0.0',
+        port=APIPropertiesManager.API_PORT,
+        # TODO
+        ssl_context=('/HalloweenEvent/server.crt', '/HalloweenEvent/server.key')
+        )

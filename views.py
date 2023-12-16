@@ -1,41 +1,69 @@
-import json
-import importlib.util
+#region IMPORTS
 import pathlib
+import os
+import logging
+import sys
+import json
 import requests
-from configparser import ConfigParser
+from hypercorn.logging import AccessLogAtoms
 from flask import Blueprint, session, render_template, request, redirect, url_for
 
-views = Blueprint(__name__, "views")
+from src.app.properties import WebAppPropertiesManager
+from src.common.firebase import FirebaseService
+#endregion
 
-# get parent directory and dependencies
-parentDir = str(pathlib.Path(__file__).parent.parent.absolute())
-parentDir = parentDir.replace("\\",'/')
+views = Blueprint("views", __name__)
 
-spec = importlib.util.spec_from_file_location('shared', parentDir + '/Shared/functions.py')
-functions = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(functions)
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        if record.args != ():
+            if isinstance(record.args, AccessLogAtoms):
+                return super().format(record)
+            argList = []
+            for arg in record.args:
+                if arg is None:
+                    argList.append('')
+                else:
+                    argList.append(arg)
+            fullMsg = record.msg % (tuple(argList))
+        else:
+            fullMsg = record.msg
+        escapedMsg = fullMsg.replace('\\', '\\\\').replace('"', '\\"')
+        record.msg = escapedMsg
+        record.args = ()
+        return super().format(record)
+    
+# create log folder if it doesn't exist
+if not os.path.exists('Logs'):
+    os.mkdir('Logs')
 
-# get configuration variables
-appConfig = ConfigParser()
-appConfig.read('HalloweenEventWebApp/app.ini')
-sharedConfig = functions.buildSharedConfig(parentDir)
+# create log handlers and assign custom formatter
+parentDir = str(pathlib.Path(__file__).parent.absolute()).replace("\\",'/')
+fileHandler = logging.FileHandler(filename = parentDir + '/Logs/HalloweenEventWebApp.log')
+stdoutHandler = logging.StreamHandler(sys.stdout)
+customFormatter = CustomFormatter('{"level":"%(levelname)s","time":"%(asctime)s","message":"%(message)s","name":"%(name)s"}')
+fileHandler.setFormatter(customFormatter)
+stdoutHandler.setFormatter(customFormatter)
+handlers = [fileHandler, stdoutHandler]
 
-shutdownTime = sharedConfig['properties']['scheduledShutdownTime']
-firebaseConfigJson = sharedConfig['properties']['firebaseConfigJson']
-firebaseAuthEmail = sharedConfig['properties']['firebaseAuthEmail']
-firebaseAuthPassword = sharedConfig['properties']['firebaseAuthPassword']
-apiHost = appConfig['properties']['apiHost']
-secretKey = appConfig['properties']['secretKey']
+# initialize logger
+logging.basicConfig(handlers = handlers, 
+                    level = logging.INFO)
+logger = logging.getLogger()
 
-# initialize firebase and database
-firebase = functions.buildFirebase(firebaseConfigJson)
-db = firebase.database()
-auth = firebase.auth()
+# start property manager and get properties
+WebAppPropertiesManager.startPropertyManager()
+logger.setLevel(WebAppPropertiesManager.LOG_LEVEL)
+
+# start firebase scheduler
+FirebaseService.startFirebaseScheduler(WebAppPropertiesManager.FIREBASE_CONFIG_JSON)
 
 cachedScoreboard = None
 def getScoreboard():
     global cachedScoreboard
-    response = requests.get(apiHost+ "/HalloweenEvent/Scoreboard/")
+    # TODO
+    response = requests.get(WebAppPropertiesManager.API_HOST + "/HalloweenEvent/Scoreboard/",
+                            verify=False)
     cachedScoreboard = response.json()
 
 @views.route("/")
@@ -78,7 +106,7 @@ def fight():
 
     if scannedUserKey != scannerUserKey:
         try:
-            response = requests.post(apiHost + "/HalloweenEvent/Fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
+            response = requests.post(WebAppPropertiesManager.API_HOST + "/HalloweenEvent/Fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
             fight = response.json()
             if fight == False:
                 fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
@@ -106,7 +134,7 @@ def participate():
         name = request.form['name']
 
         try:
-            userKey = requests.post(apiHost + "/HalloweenEvent/Users/", data = json.dumps({"email": email, "name": name}))
+            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/HalloweenEvent/Users/", data = json.dumps({"email": email, "name": name}))
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()
@@ -114,7 +142,7 @@ def participate():
         except:
             pass
 
-    return render_template("participate.html", participateLoginStyle = "", logoutStyle = "style=\"display: none;\"", shutdownTime = shutdownTime)
+    return render_template("participate.html", participateLoginStyle = "", logoutStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
 
 @views.route("/Login/", methods = ["GET", "POST"])
 def login():
@@ -124,7 +152,7 @@ def login():
         email = request.form['email']
 
         try:
-            userKey = requests.post(apiHost + "/HalloweenEvent/Login/", data = json.dumps({"email": email}))
+            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/HalloweenEvent/Login/", data = json.dumps({"email": email}))
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()

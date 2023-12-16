@@ -1,3 +1,4 @@
+#region IMPORTS
 import qrcode
 import random
 import smtplib
@@ -7,8 +8,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 
-def getScoreboard(db, token):
-    result = db.child("halloween-event").child("scoreboard").get(token)
+from src.api.properties import APIPropertiesManager
+from src.common.firebase import FirebaseService
+#endregion
+
+def getScoreboard():
+    result = FirebaseService.get(["halloween-event", "scoreboard"])
     if result.val() != None:
         scoreboard = result.val()
         if isinstance(scoreboard, dict):
@@ -18,8 +23,8 @@ def getScoreboard(db, token):
     else:
         return []
 
-def getTopScore(db, token):
-    result = db.child("halloween-event").child("users").get(token)
+def getTopScore():
+    result = FirebaseService.get(["halloween-event", "users"])
     if result.val() != None:
         users = result.val()
         if isinstance(users, dict):
@@ -34,19 +39,19 @@ def getTopScore(db, token):
     else:
         return 0
 
-def performFight(db, token, scannedUserKey, scannerUserKey, time):
-    scoreboard = getScoreboard(db, token)
+def performFight(scannedUserKey, scannerUserKey, time):
+    scoreboard = getScoreboard()
     if scoreboard != []:    
         for event in scoreboard:
             if (event["winnerKey"] == scannedUserKey and event["loserKey"] == scannerUserKey) or event["winnerKey"] == scannerUserKey and event["loserKey"] == scannedUserKey:
                 return False
 
-    scannedUserResult = db.child("halloween-event").child("users").child(scannedUserKey).get(token)
+    scannedUserResult = FirebaseService.get(["halloween-event", "users", scannedUserKey])
     if not scannedUserResult.val():
         raise Exception
     scannedUser = scannedUserResult.val()
 
-    scannerUserResult = db.child("halloween-event").child("users").child(scannerUserKey).get(token)
+    scannerUserResult = FirebaseService.get(["halloween-event", "users", scannerUserKey])
     if not scannerUserResult.val():
         raise Exception
     scannerUser = scannerUserResult.val()
@@ -64,30 +69,35 @@ def performFight(db, token, scannedUserKey, scannerUserKey, time):
         loser = scannedUser
 
     newWinnerScore = 2 + winner["score"]
-    db.child("halloween-event").child("users").child(winningKey).child("score").set(newWinnerScore)
+    FirebaseService.set(["halloween-event", "users", winningKey, "score"], newWinnerScore)
     
     newLoserScore = 1 + loser["score"]
-    db.child("halloween-event").child("users").child(losingKey).child("score").set(newLoserScore)
+    FirebaseService.set(["halloween-event", "users", losingKey, "score"], newLoserScore)
 
     event = {"winner": winner["name"] + f' ({newWinnerScore} pts)', "loser": loser["name"] + f' ({newLoserScore} pts)', "winnerKey": winningKey, "loserKey": losingKey, "time": time}
-    db.child("halloween-event").child("scoreboard").push(event)
-
+    FirebaseService.push(["halloween-event", "scoreboard"], event)
     return event
 
-def getParticipantKey(db, token, email):
-    result = db.child("halloween-event").child("users").order_by_child("email").equal_to(email).get(token)
+def getParticipantKey(email):
+    result = FirebaseService.getDbObj(["halloween-event", "users"]).order_by_child("email").equal_to(email).get()
     if not result.val():
         raise Exception
     return result.pyres[0].item[0]
 
-def addParticipant(db, token, shutdownTime, webAppHost, emailHost, emailPort, emailSender, emailPassword, name, email):
+def addParticipant(name, email):
+    emailHost = APIPropertiesManager.EMAIL_HOST
+    emailPort = APIPropertiesManager.EMAIL_PORT
+    emailSender = APIPropertiesManager.EMAIL_SENDER
+    emailPassword = APIPropertiesManager.EMAIL_PASSWORD
+    shutdownTime = APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME
+    webAppHost = APIPropertiesManager.WEBAPP_HOST
     try:
-        getParticipantKey(db, token, email)
+        getParticipantKey(email)
     except:
         user = {"name": name, "email": email, "score": 0}
-        db.child("halloween-event").child("users").push(user)
+        FirebaseService.push(["halloween-event", "users"], user)
 
-        userKey = getParticipantKey(db, token, email)
+        userKey = getParticipantKey(email)
 
         # create QR code to fight user
         
@@ -130,11 +140,15 @@ def addParticipant(db, token, shutdownTime, webAppHost, emailHost, emailPort, em
 
     raise Exception
 
-def emailResults(db, token, emailHost, emailPort, emailSender, emailPassword):
-    scoreboard = getScoreboard(db, token)
-    topScore = getTopScore(db, token)
+def emailResults():
+    emailHost = APIPropertiesManager.EMAIL_HOST
+    emailPort = APIPropertiesManager.EMAIL_PORT
+    emailSender = APIPropertiesManager.EMAIL_SENDER
+    emailPassword = APIPropertiesManager.EMAIL_PASSWORD
+    scoreboard = getScoreboard()
+    topScore = getTopScore()
 
-    result = db.child("halloween-event").child("users").get(token)
+    result = FirebaseService.get(["halloween-event", "users"])
     if result.val() != None:
         users = result.val()
     else:

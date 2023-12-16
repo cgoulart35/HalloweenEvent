@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+
+  halloween-api-prod:
+    container_name: "HalloweenEventApi_prod"
+    build:
+      context: .
+      dockerfile: ./Dockerfile.api
+      target: prod
+    env_file: ./api.env
+    volumes:
+      - ./serviceAccountKey.json:/HalloweenEvent/serviceAccountKey.json
+    restart: no
+    init: true
+    ports:
+      - 5681:5678
+      - 5007:5004
+  halloween-webapp-prod:
+    container_name: "HalloweenEventWebApp_prod"
+    build:
+      context: .
+      dockerfile: ./Dockerfile.app
+      target: prod
+    env_file: ./app.env
+    volumes:
+      - ./serviceAccountKey.json:/HalloweenEvent/serviceAccountKey.json
+    restart: no
+    init: true
+    ports:
+      - 5682:5678
+      - 5009:5004
