@@ -62,7 +62,7 @@ cachedScoreboard = None
 def getScoreboard():
     global cachedScoreboard
     # TODO
-    response = requests.get(WebAppPropertiesManager.API_HOST + "/halloween/scoreboard/",
+    response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
                             verify=False)
     cachedScoreboard = response.json()
 
@@ -106,7 +106,7 @@ def fight():
 
     if scannedUserKey != scannerUserKey:
         try:
-            response = requests.post(WebAppPropertiesManager.API_HOST + "/halloween/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
+            response = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
             fight = response.json()
             if fight == False:
                 fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
@@ -134,7 +134,7 @@ def participate():
         name = request.form['name']
 
         try:
-            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/halloween/users/", data = json.dumps({"email": email, "name": name}))
+            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"email": email, "name": name}))
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()
@@ -152,7 +152,7 @@ def login():
         email = request.form['email']
 
         try:
-            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/halloween/login/", data = json.dumps({"email": email}))
+            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/login/", data = json.dumps({"email": email}))
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()

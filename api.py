@@ -160,10 +160,10 @@ class Login(Resource):
         except:
             abort(400, errorMsg)
 
-api.add_resource(Scoreboard, '/halloween/scoreboard/')
-api.add_resource(Fight, '/halloween/fight/')
-api.add_resource(Users, '/halloween/users/')
-api.add_resource(Login, '/halloween/login/')
+api.add_resource(Scoreboard, '/scoreboard/')
+api.add_resource(Fight, '/fight/')
+api.add_resource(Users, '/users/')
+api.add_resource(Login, '/login/')
 app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentDir + '/src/common', 'favicon-pumpkin.ico'))
 app.run(host='0.0.0.0',
         port=APIPropertiesManager.API_PORT,
