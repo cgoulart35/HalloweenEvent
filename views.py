@@ -67,7 +67,7 @@ def getScoreboard():
     cachedScoreboard = response.json()
 
 @views.route("/")
-@views.route("/Scoreboard/")
+@views.route("/scoreboard/")
 def scoreboard():
     if "userKey" in session:
         participateLoginStyle = "style=\"display: none;\""
@@ -92,7 +92,7 @@ def scoreboard():
 
     return render_template("scoreboard.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = "")
 
-@views.route("/Fight/", methods = ["GET", "POST"])
+@views.route("/fight/", methods = ["GET", "POST"])
 def fight():
     if "userKey" in session:
         participateLoginStyle = "style=\"display: none;\""
@@ -125,7 +125,7 @@ def fight():
 
     return redirect(url_for("views.scoreboard"))
 
-@views.route("/Participate/", methods = ["GET", "POST"])
+@views.route("/participate/", methods = ["GET", "POST"])
 def participate():
     if "userKey" in session:
         return redirect(url_for("views.scoreboard"))
@@ -144,7 +144,7 @@ def participate():
 
     return render_template("participate.html", participateLoginStyle = "", logoutStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
 
-@views.route("/Login/", methods = ["GET", "POST"])
+@views.route("/login/", methods = ["GET", "POST"])
 def login():
     if "userKey" in session:
         return redirect(url_for("views.scoreboard"))
@@ -162,7 +162,7 @@ def login():
 
     return render_template("login.html", participateLoginStyle = "", logoutStyle = "style=\"display: none;\"")
 
-@views.route("/Logout/")
+@views.route("/logout/")
 def logout():
     if "userKey" in session:
         session.pop("userKey", None)
