@@ -101,7 +101,7 @@ def addParticipant(name, email):
 
         # create QR code to fight user
         
-        qrCodeFightUrl = webAppHost + "/HalloweenEvent/Fight/?scannedUserKey="
+        qrCodeFightUrl = webAppHost + "/halloween/fight/?scannedUserKey="
         userQrCode = qrcode.make(qrCodeFightUrl + userKey)
         userQRCodeFileName = userKey + ".png"
         if not os.path.exists('QR Codes'):
@@ -113,7 +113,7 @@ def addParticipant(name, email):
         emailReceivers = [email]
 
         # create an email with instructions and user's QR code
-        scoreboardUrl = webAppHost + "/HalloweenEvent/Scoreboard/"
+        scoreboardUrl = webAppHost + "/halloween/scoreboard/"
         rules = f'<ol><li>A QR code has been created for you.</li><li>Scan as many other players\' QR codes as you can to fight them once.</li><li>The random winner of a fight will get 2 points and the loser will get 1 point.</li><li>The player with the most points at the end of the night by {shutdownTime} wins.</li><li>You will be sent a summary at the end of the night of who you interacted with!</li><li>Have fun!</li></ol>'
         body = f'<br>Hello {name},<br><br>Welcome to The Long Night!<br><br>Rules:<br>{rules}<br>Live Scoreboard: (log in through email only - don\'t share it!) {scoreboardUrl}<br><br>Your QR Code:<br>'
         
