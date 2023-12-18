@@ -74,10 +74,10 @@ def getScoreboard():
 def feed():
     if "userKey" in session:
         participateLoginStyle = "style=\"display: none;\""
-        logoutStyle = ""
+        logoutFeedStyle = ""
     else:
         participateLoginStyle = ""
-        logoutStyle = "style=\"display: none;\""
+        logoutFeedStyle = "style=\"display: none;\""
     try:
         global cachedScoreboard
         scoreboardHTML = ""
@@ -89,17 +89,17 @@ def feed():
 
             topScore = cachedScoreboard["topScore"]
 
-        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = scoreboardHTML, topScore = topScore)
+        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
         pass;  
 
-    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = "")
+    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, scoreboard = "")
 
 @views.route("/fight/", methods = ["GET", "POST"])
 def fight():
     if "userKey" in session:
         participateLoginStyle = "style=\"display: none;\""
-        logoutStyle = ""
+        logoutFeedStyle = ""
     else:
         return redirect(url_for("views.login"))
     
@@ -113,16 +113,16 @@ def fight():
             fight = response.json()
             if fight == False:
                 fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
-                return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, fightHTML = fightHTML)
+                return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
             if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
                 fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{fight["winner"]} defeated {fight["loser"]}.</h3><h5>Time: {fight["time"]}</h5></div></div><hr>'
 
                 if fight["winnerKey"] == scannerUserKey and fight["loserKey"] == scannedUserKey:
                     fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youWon\" src=\"{url_for('static', filename='youWon.png')}\"></div></div><hr>"
-                    return render_template("youWon.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, fightHTML = fightHTML)
+                    return render_template("youWon.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
                 else:
                     fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
-                    return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, fightHTML = fightHTML)
+                    return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
         except:
             pass
 
@@ -145,7 +145,7 @@ def participate():
         except:
             pass
 
-    return render_template("participate.html", participateLoginStyle = "", logoutStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
+    return render_template("participate.html", participateLoginStyle = "", logoutFeedStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
 
 @views.route("/login/", methods = ["GET", "POST"])
 def login():
@@ -163,7 +163,7 @@ def login():
         except:
             pass
 
-    return render_template("login.html", participateLoginStyle = "", logoutStyle = "style=\"display: none;\"")
+    return render_template("login.html", participateLoginStyle = "", logoutFeedStyle = "style=\"display: none;\"")
 
 @views.route("/logout/")
 def logout():
