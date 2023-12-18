@@ -2,9 +2,13 @@
     font-family: GOT;
     src: url(GOT.ttf);
 }
+html{
+    height: 100%
+}
 body{
     max-width:100vw;
-    max-height:100vh;
+    min-height:100vh;
+    background-color: #ffb94f;
 }
 .header{
     text-align: center;
@@ -26,6 +30,29 @@ body{
 }
 .w3-circle{
     width: 75%;    
+}
+.w3-sidebar{
+    background-color: #5f2f87;
+    color: white;
+}
+.w3-theme-d2{
+    background-color: #5f2f87 !important;
+}
+.hamburger-button{
+    position: relative;
+    width: 70px !important;
+}
+.website-title{
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%) translateX(-70px);
+}
+.w3-button{
+    border: 4px solid rgba(0, 0, 0, 0) !important;
+}
+.w3-button:hover{
+    background-color: rgba(9, 255, 0, 1) !important;
+    border: 4px solid rgba(201, 0, 205, 1) !important;
 }
 .participate{
     background-color: rgba(9, 255, 0, 1);
@@ -102,8 +129,16 @@ body{
     margin-right: auto;
     width: 100%;
 }
+.footer-placeholder{
+    position: relative;
+    height: 52px;
+}
 .footer{
     text-align: center;
+    position: fixed;
+    width: 100%;
+    bottom: 0;
+    height: 52px;
 }
 .footer-text{
     font-family: GOT;

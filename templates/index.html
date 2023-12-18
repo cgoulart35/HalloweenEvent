@@ -16,20 +16,21 @@
             <img class="w3-circle" src="{{url_for('static', filename='logo.png')}}" alt="avatar">
           </div>
         </div>
-        <a class="w3-bar-item w3-button nav-button-text" href="{{url_for('views.scoreboard')}}">Scoreboard</a>
-        <a class="w3-bar-item w3-button nav-button-text" {{participateLoginStyle|safe}} href="{{url_for('views.participate')}}">Participate</a>
-        <a class="w3-bar-item w3-button nav-button-text" {{participateLoginStyle|safe}} href="{{url_for('views.login')}}">Login</a>
-        <a class="w3-bar-item w3-button nav-button-text" {{logoutStyle|safe}} href="{{url_for('views.logout')}}">Logout</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" href="{{url_for('views.feed')}}">Feed</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{participateLoginStyle|safe}} href="{{url_for('views.participate')}}">Participate</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{participateLoginStyle|safe}} href="{{url_for('views.login')}}">Login</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutStyle|safe}} href="{{url_for('views.logout')}}">Logout</a>
     </nav>
     <header class="w3-bar w3-card w3-theme header">
-        <button class="w3-bar-item w3-button w3-xlarge w3-hover-theme" onclick="openSidebar()">&#9776;</button>
-        <div class="w3-bar-item">
+        <button class="w3-bar-item w3-button w3-xlarge w3-hover-theme hamburger-button" onclick="openSidebar()">&#9776;</button>
+        <div class="w3-bar-item website-title">
             <h1 class="header-text-top">The Long Night</h1>
             <h2 class="header-text-bottom">A Goulart Halloween Game</h3>
         </div>
     </header>
     {% block content %}
     {% endblock %}
+    <div class="footer-placeholder"></div>
     <footer class="w3-container w3-theme footer">
         <h1 class="footer-text">Happy Halloween</h3>
     </footer>

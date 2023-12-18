@@ -67,8 +67,8 @@ def getScoreboard():
     cachedScoreboard = response.json()
 
 @views.route("/")
-@views.route("/scoreboard/")
-def scoreboard():
+@views.route("/feed/")
+def feed():
     if "userKey" in session:
         participateLoginStyle = "style=\"display: none;\""
         logoutStyle = ""
@@ -86,11 +86,11 @@ def scoreboard():
 
             topScore = cachedScoreboard["topScore"]
 
-        return render_template("scoreboard.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = scoreboardHTML, topScore = topScore)
+        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
         pass;  
 
-    return render_template("scoreboard.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = "")
+    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutStyle = logoutStyle, scoreboard = "")
 
 @views.route("/fight/", methods = ["GET", "POST"])
 def fight():
@@ -123,12 +123,12 @@ def fight():
         except:
             pass
 
-    return redirect(url_for("views.scoreboard"))
+    return redirect(url_for("views.feed"))
 
 @views.route("/participate/", methods = ["GET", "POST"])
 def participate():
     if "userKey" in session:
-        return redirect(url_for("views.scoreboard"))
+        return redirect(url_for("views.feed"))
     if request.method == "POST":
         email = request.form['email']
         name = request.form['name']
@@ -138,7 +138,7 @@ def participate():
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()
-            return redirect(url_for("views.scoreboard"))
+            return redirect(url_for("views.feed"))
         except:
             pass
 
@@ -147,7 +147,7 @@ def participate():
 @views.route("/login/", methods = ["GET", "POST"])
 def login():
     if "userKey" in session:
-        return redirect(url_for("views.scoreboard"))
+        return redirect(url_for("views.feed"))
     if request.method == "POST":
         email = request.form['email']
 
@@ -156,7 +156,7 @@ def login():
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()
-            return redirect(url_for("views.scoreboard"))
+            return redirect(url_for("views.feed"))
         except:
             pass
 
