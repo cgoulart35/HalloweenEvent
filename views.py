@@ -62,9 +62,12 @@ cachedScoreboard = None
 def getScoreboard():
     global cachedScoreboard
     # TODO
-    response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
-                            verify=False)
-    cachedScoreboard = response.json()
+    try:
+        response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
+                                verify=False)
+        cachedScoreboard = response.json()
+    except Exception as e:
+        logger.error(e)
 
 @views.route("/")
 @views.route("/feed/")

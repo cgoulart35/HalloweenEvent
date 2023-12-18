@@ -168,5 +168,5 @@ app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentD
 app.run(host='0.0.0.0',
         port=APIPropertiesManager.API_PORT,
         # TODO
-        ssl_context=('/HalloweenEvent/server.crt', '/HalloweenEvent/server.key')
+        # ssl_context=('/HalloweenEvent/server.crt', '/HalloweenEvent/server.key')
         )
