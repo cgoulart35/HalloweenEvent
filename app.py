@@ -12,7 +12,6 @@ from src.app.properties import WebAppPropertiesManager
 def shutDownApplication():
     os.system("kill -15 1")
 
-getScoreboard()
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(shutDownApplication, 'date', run_date = datetime.strptime(WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
 sched.add_job(getScoreboard, 'interval', seconds = 30)
