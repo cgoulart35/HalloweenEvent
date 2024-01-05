@@ -4,6 +4,7 @@ import os
 import logging
 import sys
 import json
+import bcrypt
 from datetime import datetime
 from hypercorn.logging import AccessLogAtoms
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -122,20 +123,30 @@ class Users(Resource):
             errorMsg = "Invalid Request."
             value = json.loads(value)
 
-            # validate there is a field for name (str) email (str)
+            # validate there is a field for name (str) email (str) password (str)
             isInvalid = False
 
             if "name" not in value or value["name"] == None or value["name"] == "" or type(value["name"]) != str:
                 isInvalid = True
             if "email" not in value or value["email"] == None or value["email"] == "" or type(value["email"]) != str:
                 isInvalid = True
+            if "password" not in value or value["password"] == None or value["password"] == "" or type(value["password"]) != str:
+                isInvalid = True
 
             if isInvalid:
                 raise Exception
+            
+            # use bcrypt hash alogrithm and delete password in memory
+            bytes = value["password"].encode('utf-8')
+            salt = bcrypt.gensalt()
+            hashedPassword = bcrypt.hashpw(bytes, salt)
+            value["password"] = None
+
             errorMsg = "No user added."
-            userKey = queries.addParticipant(value["name"], value["email"])
+            userKey = queries.addParticipant(value["name"], value["email"], hashedPassword.decode('utf-8'))
             return userKey
         except:
+            value["password"] = None
             abort(400, errorMsg)
 
 class Login(Resource):
@@ -146,18 +157,30 @@ class Login(Resource):
             errorMsg = "Invalid Request."
             value = json.loads(value)
 
-            # validate there is a field for email (str)
+            # validate there is a field for email (str) password (str)
             isInvalid = False
 
             if "email" not in value or value["email"] == None or value["email"] == "" or type(value["email"]) != str:
                 isInvalid = True
+            if "password" not in value or value["password"] == None or value["password"] == "" or type(value["password"]) != str:
+                isInvalid = True
 
             if isInvalid:
                 raise Exception
-            errorMsg = "No user logged in."
+
+            errorMsg = "Incorrect email or password."
             userKey = queries.getParticipantKey(value["email"])
+
+            # use bcrypt alogrithm to check password and delete password in memory
+            hashedPassword = queries.getParticipantHashedPassword(userKey)
+            bytes = value["password"].encode('utf-8')
+            if not bcrypt.checkpw(bytes, hashedPassword):
+                raise Exception
+            value["password"] = None
+            
             return userKey
         except:
+            value["password"] = None
             abort(400, errorMsg)
 
 api.add_resource(Scoreboard, '/scoreboard/')

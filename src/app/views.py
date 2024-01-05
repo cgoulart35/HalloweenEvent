@@ -139,15 +139,18 @@ def participate():
         return redirect(url_for("views.feed"))
     if request.method == "POST":
         email = request.form['email']
+        password = request.form['password']
         name = request.form['name']
 
         try:
-            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"email": email, "name": name}))
+            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"email": email, "password": password, "name": name}))
+            password = None
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()
             return redirect(url_for("views.feed"))
         except:
+            password = None
             pass
 
     return render_template("participate.html", participateLoginStyle = "", logoutFeedStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
@@ -158,14 +161,17 @@ def login():
         return redirect(url_for("views.feed"))
     if request.method == "POST":
         email = request.form['email']
+        password = request.form['password']
 
         try:
-            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/login/", data = json.dumps({"email": email}))
+            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/login/", data = json.dumps({"email": email, "password": password}))
+            password = None
             if userKey.status_code == 400:
                 raise Exception
             session['userKey'] = userKey.json()
             return redirect(url_for("views.feed"))
         except:
+            password = None
             pass
 
     return render_template("login.html", participateLoginStyle = "", logoutFeedStyle = "style=\"display: none;\"")

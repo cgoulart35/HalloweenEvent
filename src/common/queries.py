@@ -84,7 +84,11 @@ def getParticipantKey(email):
         raise Exception
     return result.pyres[0].item[0]
 
-def addParticipant(name, email):
+def getParticipantHashedPassword(userKey):
+    result = FirebaseService.get(['halloween-event', "users", userKey, 'hashedPassword'])
+    return result.val().encode('utf-8')
+
+def addParticipant(name, email, hashedPassword):
     emailHost = APIPropertiesManager.EMAIL_HOST
     emailPort = APIPropertiesManager.EMAIL_PORT
     emailSender = APIPropertiesManager.EMAIL_SENDER
@@ -94,7 +98,7 @@ def addParticipant(name, email):
     try:
         getParticipantKey(email)
     except:
-        user = {"name": name, "email": email, "score": 0}
+        user = {"name": name, "email": email, "hashedPassword": hashedPassword, "score": 0}
         FirebaseService.push(["halloween-event", "users"], user)
 
         userKey = getParticipantKey(email)
