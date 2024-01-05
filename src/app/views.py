@@ -70,6 +70,12 @@ def getScoreboard():
         logger.error(e)
 
 @views.route("/")
+def root():
+    if "userKey" in session:
+        return redirect(url_for("views.feed"))
+    else:
+        return redirect(url_for("views.participate"))
+
 @views.route("/feed/")
 def feed():
     if "userKey" in session:
