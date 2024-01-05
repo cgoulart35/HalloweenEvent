@@ -22,7 +22,7 @@ RUN openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.c
 
 FROM stage AS dev
 
-ENTRYPOINT ["python3", "-m", "debugpy", "--wait-for-client", "--listen", "0.0.0.0:5678", "app.py"]
+ENTRYPOINT ["python3", "-m", "debugpy", "--wait-for-client", "--listen", "0.0.0.0:5678", "src/app/app.py"]
 
 ##########################
 # production
@@ -30,4 +30,4 @@ ENTRYPOINT ["python3", "-m", "debugpy", "--wait-for-client", "--listen", "0.0.0.
 
 FROM stage AS prod
 
-ENTRYPOINT ["python3", "-m", "debugpy", "--listen", "0.0.0.0:5678", "app.py"]
+ENTRYPOINT ["python3", "-m", "debugpy", "--listen", "0.0.0.0:5678", "src/app/app.py"]

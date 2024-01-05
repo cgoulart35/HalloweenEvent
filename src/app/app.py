@@ -4,7 +4,7 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, send_from_directory
 
-from views import views, parentDir, getScoreboard
+from src.app.views import views, parentDir, getScoreboard
 from src.app.properties import WebAppPropertiesManager
 #endregion
 

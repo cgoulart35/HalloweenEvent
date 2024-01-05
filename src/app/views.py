@@ -38,7 +38,7 @@ if not os.path.exists('Logs'):
     os.mkdir('Logs')
 
 # create log handlers and assign custom formatter
-parentDir = str(pathlib.Path(__file__).parent.absolute()).replace("\\",'/')
+parentDir = str(pathlib.Path(__file__).parent.parent.parent.absolute()).replace("\\",'/')
 fileHandler = logging.FileHandler(filename = parentDir + '/Logs/HalloweenEventWebApp.log')
 stdoutHandler = logging.StreamHandler(sys.stdout)
 customFormatter = CustomFormatter('{"level":"%(levelname)s","time":"%(asctime)s","message":"%(message)s","name":"%(name)s"}')
