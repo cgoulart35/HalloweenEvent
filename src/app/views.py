@@ -76,8 +76,7 @@ def feed():
         participateLoginStyle = "style=\"display: none;\""
         logoutFeedStyle = ""
     else:
-        participateLoginStyle = ""
-        logoutFeedStyle = "style=\"display: none;\""
+        return redirect(url_for("views.login"))
     try:
         global cachedScoreboard
         scoreboardHTML = ""
