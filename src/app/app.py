@@ -4,7 +4,7 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, send_from_directory
 
-from src.app.views import views, parentDir, getScoreboard
+from src.app.views import views, parentDir, getScoreboard, expireServerSessions
 from src.app.properties import WebAppPropertiesManager
 #endregion
 
@@ -15,6 +15,7 @@ def shutDownApplication():
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(shutDownApplication, 'date', run_date = datetime.strptime(WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
 sched.add_job(getScoreboard, 'interval', seconds = 30)
+sched.add_job(expireServerSessions, 'interval', seconds = 60)
 sched.start()
 
 app = Flask(__name__)

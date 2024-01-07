@@ -6,6 +6,7 @@ import sys
 import json
 import requests
 import uuid
+from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
 from flask import Blueprint, session, render_template, request, redirect, url_for
 
@@ -71,10 +72,20 @@ def getScoreboard():
         logger.error(e)
 
 openSessions = dict()
+def expireServerSessions():
+    currentTime = datetime.now()
+    expiredSessionIds = []
+    for sessionId, session in openSessions.items():
+        createdTime = session["created"]
+        if (currentTime - createdTime >= timedelta(days = 1)):
+            expiredSessionIds.append(sessionId)
+    for sessionId in expiredSessionIds:
+        openSessions.pop(sessionId)
+
 def createNewSession(session, userKey):
     global openSessions
     newSessionId = str(uuid.uuid4())
-    openSessions[newSessionId] = userKey
+    openSessions[newSessionId] = {"userKey": userKey, "created": datetime.now()}
     session["sessionId"] = newSessionId
 
 def endSession(session):
@@ -91,7 +102,7 @@ def sessionExists(session):
 
 def getSessionUserKey(session):
     global openSessions
-    return openSessions[session["sessionId"]]
+    return openSessions[session["sessionId"]]["userKey"]
 
 @views.route("/")
 def root():
