@@ -40,6 +40,9 @@ def getTopScore():
         return 0
 
 def performFight(scannedUserKey, scannerUserKey, time):
+    if scannedUserKey == scannerUserKey:
+        return False
+
     scoreboard = getScoreboard()
     if scoreboard != []:    
         for event in scoreboard:

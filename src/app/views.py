@@ -5,6 +5,7 @@ import logging
 import sys
 import json
 import requests
+import uuid
 from hypercorn.logging import AccessLogAtoms
 from flask import Blueprint, session, render_template, request, redirect, url_for
 
@@ -69,16 +70,39 @@ def getScoreboard():
     except Exception as e:
         logger.error(e)
 
+openSessions = dict()
+def createNewSession(session, userKey):
+    global openSessions
+    newSessionId = str(uuid.uuid4())
+    openSessions[newSessionId] = userKey
+    session["sessionId"] = newSessionId
+
+def endSession(session):
+    global openSessions
+    if "sessionId" in session:
+        openSessions.pop(session["sessionId"])
+        session.pop("sessionId", None)
+
+def sessionExists(session):
+    global openSessions
+    if "sessionId" not in session:
+        return False
+    return session["sessionId"] in openSessions
+
+def getSessionUserKey(session):
+    global openSessions
+    return openSessions[session["sessionId"]]
+
 @views.route("/")
 def root():
-    if "userKey" in session:
+    if sessionExists(session):
         return redirect(url_for("views.feed"))
     else:
         return redirect(url_for("views.participate"))
 
 @views.route("/feed/")
 def feed():
-    if "userKey" in session:
+    if sessionExists(session):
         participateLoginStyle = "style=\"display: none;\""
         logoutFeedStyle = ""
     else:
@@ -102,7 +126,7 @@ def feed():
 
 @views.route("/fight/", methods = ["GET", "POST"])
 def fight():
-    if "userKey" in session:
+    if sessionExists(session):
         participateLoginStyle = "style=\"display: none;\""
         logoutFeedStyle = ""
     else:
@@ -110,32 +134,31 @@ def fight():
     
     args = request.args
     scannedUserKey = args.get('scannedUserKey')
-    scannerUserKey = session['userKey']
+    scannerUserKey = getSessionUserKey(session)
 
-    if scannedUserKey != scannerUserKey:
-        try:
-            response = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
-            fight = response.json()
-            if fight == False:
-                fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
-                return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
-            if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
-                fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{fight["winner"]} defeated {fight["loser"]}.</h3><h5>Time: {fight["time"]}</h5></div></div><hr>'
+    try:
+        response = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
+        fight = response.json()
+        if fight == False:
+            fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
+            return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
+        if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
+            fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{fight["winner"]} defeated {fight["loser"]}.</h3><h5>Time: {fight["time"]}</h5></div></div><hr>'
 
-                if fight["winnerKey"] == scannerUserKey and fight["loserKey"] == scannedUserKey:
-                    fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youWon\" src=\"{url_for('static', filename='youWon.png')}\"></div></div><hr>"
-                    return render_template("youWon.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
-                else:
-                    fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
-                    return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
-        except:
-            pass
+            if fight["winnerKey"] == scannerUserKey and fight["loserKey"] == scannedUserKey:
+                fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youWon\" src=\"{url_for('static', filename='youWon.png')}\"></div></div><hr>"
+                return render_template("youWon.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
+            else:
+                fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
+                return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
+    except:
+        pass
 
     return redirect(url_for("views.feed"))
 
 @views.route("/participate/", methods = ["GET", "POST"])
 def participate():
-    if "userKey" in session:
+    if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
         email = request.form['email']
@@ -147,7 +170,7 @@ def participate():
             password = None
             if userKey.status_code == 400:
                 raise Exception
-            session['userKey'] = userKey.json()
+            createNewSession(session, userKey.json())
             return redirect(url_for("views.feed"))
         except:
             password = None
@@ -157,7 +180,7 @@ def participate():
 
 @views.route("/login/", methods = ["GET", "POST"])
 def login():
-    if "userKey" in session:
+    if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
         email = request.form['email']
@@ -168,7 +191,7 @@ def login():
             password = None
             if userKey.status_code == 400:
                 raise Exception
-            session['userKey'] = userKey.json()
+            createNewSession(session, userKey.json())
             return redirect(url_for("views.feed"))
         except:
             password = None
@@ -178,6 +201,7 @@ def login():
 
 @views.route("/logout/")
 def logout():
-    if "userKey" in session:
-        session.pop("userKey", None)
-    return redirect(url_for("views.login"))
+    if sessionExists(session):
+        endSession(session)
+        return redirect(url_for("views.login"))
+    return ('', 204)
