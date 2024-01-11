@@ -77,8 +77,8 @@ class WebAppPropertiesManager:
             WebAppPropertiesManager.logger.setLevel(WebAppPropertiesManager.getLogLevel(WebAppPropertiesManager.LOG_LEVEL))
         elif property == "SCHEDULED_SHUTDOWN_TIME":
             WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME = value
-        elif property == "WEBAPP_HOST":
-            WebAppPropertiesManager.WEBAPP_HOST = value
+        elif property == "API_HOST":
+            WebAppPropertiesManager.API_HOST = value
         else:
             return False
         return True
