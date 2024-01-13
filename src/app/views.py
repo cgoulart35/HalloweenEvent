@@ -104,8 +104,9 @@ def getSessionUserKey(session):
     global openSessions
     return openSessions[session["sessionId"]]["userKey"]
 
-@views.route("/")
-def root():
+@views.route("/", defaults = {"path": ""})
+@views.route("/<path:path>")
+def root(path):
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     else:
