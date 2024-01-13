@@ -60,17 +60,6 @@ logger.setLevel(WebAppPropertiesManager.LOG_LEVEL)
 # start firebase scheduler
 FirebaseService.startFirebaseScheduler(WebAppPropertiesManager.FIREBASE_CONFIG_JSON)
 
-cachedScoreboard = None
-def getScoreboard():
-    global cachedScoreboard
-    # TODO
-    try:
-        response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
-                                verify=False)
-        cachedScoreboard = response.json()
-    except Exception as e:
-        logger.error(e)
-
 openSessions = dict()
 def expireServerSessions():
     currentTime = datetime.now()
@@ -104,6 +93,16 @@ def getSessionUserKey(session):
     global openSessions
     return openSessions[session["sessionId"]]["userKey"]
 
+def getScoreboard():
+    # TODO
+    try:
+        response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
+                                verify=False)
+        return response.json()
+    except Exception as e:
+        logger.error(e)
+        return None
+
 @views.route("/", defaults = {"path": ""})
 @views.route("/<path:path>")
 def root(path):
@@ -120,15 +119,15 @@ def feed():
     else:
         return redirect(url_for("views.login"))
     try:
-        global cachedScoreboard
+        scoreboardJson = getScoreboard()
         scoreboardHTML = ""
         topScore = 0
 
-        if cachedScoreboard != None:
-            for event in cachedScoreboard["scoreboard"]:
+        if scoreboardJson != None:
+            for event in scoreboardJson["scoreboard"]:
                 scoreboardHTML += f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{event["winner"]} defeated {event["loser"]}.</h3><h5>Time: {event["time"]}</h5></div></div><hr>'
 
-            topScore = cachedScoreboard["topScore"]
+            topScore = scoreboardJson["topScore"]
 
         return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
