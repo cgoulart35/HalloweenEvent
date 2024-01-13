@@ -81,15 +81,15 @@ def performFight(scannedUserKey, scannerUserKey, time):
     FirebaseService.push(["halloween-event", "scoreboard"], event)
     return event
 
-def getParticipantKey(email):
+def getParticipantDataViaEmail(email):
     result = FirebaseService.getDbObj(["halloween-event", "users"]).order_by_child("email").equal_to(email).get()
     if not result.val():
         raise Exception
-    return result.pyres[0].item[0]
+    return (result.pyres[0].item)
 
-def getParticipantHashedPassword(userKey):
-    result = FirebaseService.get(['halloween-event', "users", userKey, 'hashedPassword'])
-    return result.val().encode('utf-8')
+def getParticipantDataViaUserKey(userKey):
+    result = FirebaseService.get(["halloween-event", "users", userKey])
+    return result.val()
 
 def addParticipant(name, email, hashedPassword):
     emailHost = APIPropertiesManager.EMAIL_HOST
@@ -99,12 +99,13 @@ def addParticipant(name, email, hashedPassword):
     shutdownTime = APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME
     webAppHost = APIPropertiesManager.WEBAPP_HOST
     try:
-        getParticipantKey(email)
+        getParticipantDataViaEmail(email)
     except:
         user = {"name": name, "email": email, "hashedPassword": hashedPassword, "score": 0}
         FirebaseService.push(["halloween-event", "users"], user)
 
-        userKey = getParticipantKey(email)
+        userData = getParticipantDataViaEmail(email)
+        userKey = userData[0]
 
         # create QR code to fight user
         
@@ -144,8 +145,12 @@ def addParticipant(name, email, hashedPassword):
         server.quit()
 
         return userKey
-
+    
     raise Exception
+
+def updateParticipant(userKey, email, hashedPassword):
+    FirebaseService.set(["halloween-event", "users", userKey, "email"], email)
+    FirebaseService.set(["halloween-event", "users", userKey, "hashedPassword"], hashedPassword)    
 
 def emailResults():
     emailHost = APIPropertiesManager.EMAIL_HOST

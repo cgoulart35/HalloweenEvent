@@ -62,6 +62,10 @@ body{
     background-color: rgba(9, 255, 0, 1);
     border: 6px solid rgba(201, 0, 205, 1);
 }
+.profile{
+    background-color: rgba(9, 255, 0, 1);
+    border: 6px solid rgba(201, 0, 205, 1);
+}
 .welcome{
     text-align: center;
 }

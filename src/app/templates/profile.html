@@ -1,0 +1,16 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="profile" >
+    <h3 class="welcome">Signed in as {{displayName}}</h3>
+    <div class="log-back-in">
+        <p>Need to change your email or password?<br>Update them below!<p>
+    </div>
+    <div class="forms">
+        <form action = "{{url_for('views.profile')}}" method = "post">
+            <p><input class="input" type = email name = email placeholder="Email"></p>
+            <p><input class="input" type = password name = password placeholder="Password"></p>
+            <p><input class="button" type = submit value = "Save"></p>
+        </form>
+     </div>
+</div>
+{% endblock %}

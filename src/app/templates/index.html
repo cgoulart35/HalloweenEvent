@@ -16,10 +16,11 @@
             <img class="w3-circle" src="{{url_for('static', filename='logo.png')}}" alt="avatar">
           </div>
         </div>
-        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedStyle|safe}} href="{{url_for('views.feed')}}">Feed</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{participateLoginStyle|safe}} href="{{url_for('views.participate')}}">Participate</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{participateLoginStyle|safe}} href="{{url_for('views.login')}}">Login</a>
-        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedStyle|safe}} href="{{url_for('views.logout')}}">Logout</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.feed')}}">Feed</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.profile')}}">Profile</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.logout')}}">Logout</a>
     </nav>
     <header class="w3-bar w3-card w3-theme header">
         <button class="w3-bar-item w3-button w3-xlarge w3-hover-theme hamburger-button" onclick="openSidebar()">&#9776;</button>

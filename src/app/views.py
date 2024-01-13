@@ -71,10 +71,10 @@ def expireServerSessions():
     for sessionId in expiredSessionIds:
         openSessions.pop(sessionId)
 
-def createNewSession(session, userKey):
+def createNewSession(session, userKey, displayName):
     global openSessions
     newSessionId = str(uuid.uuid4())
-    openSessions[newSessionId] = {"userKey": userKey, "created": datetime.now()}
+    openSessions[newSessionId] = {"userKey": userKey, "displayName": displayName, "created": datetime.now()}
     session["sessionId"] = newSessionId
 
 def endSession(session):
@@ -92,6 +92,10 @@ def sessionExists(session):
 def getSessionUserKey(session):
     global openSessions
     return openSessions[session["sessionId"]]["userKey"]
+
+def getSessionUserName(session):
+    global openSessions
+    return openSessions[session["sessionId"]]["displayName"]
 
 def getScoreboard():
     # TODO
@@ -115,7 +119,7 @@ def root(path):
 def feed():
     if sessionExists(session):
         participateLoginStyle = "style=\"display: none;\""
-        logoutFeedStyle = ""
+        logoutFeedProfileStyle = ""
     else:
         return redirect(url_for("views.login"))
     try:
@@ -129,17 +133,39 @@ def feed():
 
             topScore = scoreboardJson["topScore"]
 
-        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, scoreboard = scoreboardHTML, topScore = topScore)
+        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
         pass;  
 
-    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, scoreboard = "")
+    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = "")
+
+@views.route("/profile/", methods = ["GET", "POST"])
+def profile():
+    if sessionExists(session):
+        participateLoginStyle = "style=\"display: none;\""
+        logoutFeedProfileStyle = ""
+    else:
+        return redirect(url_for("views.login"))
+    if request.method == "POST":
+        email = request.form['email']
+        password = request.form['password']
+
+        try:
+            updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "password": password}))
+            password = None
+            if updateProfileResponse.status_code == 400:
+                raise Exception
+        except:
+            password = None
+            pass
+
+    return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session))
 
 @views.route("/fight/", methods = ["GET", "POST"])
 def fight():
     if sessionExists(session):
         participateLoginStyle = "style=\"display: none;\""
-        logoutFeedStyle = ""
+        logoutFeedProfileStyle = ""
     else:
         return redirect(url_for("views.login"))
     
@@ -152,16 +178,16 @@ def fight():
         fight = response.json()
         if fight == False:
             fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
-            return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
+            return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
         if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
             fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{fight["winner"]} defeated {fight["loser"]}.</h3><h5>Time: {fight["time"]}</h5></div></div><hr>'
 
             if fight["winnerKey"] == scannerUserKey and fight["loserKey"] == scannedUserKey:
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youWon\" src=\"{url_for('static', filename='youWon.png')}\"></div></div><hr>"
-                return render_template("youWon.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
+                return render_template("youWon.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
             else:
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
-                return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedStyle = logoutFeedStyle, fightHTML = fightHTML)
+                return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
     except:
         pass
 
@@ -177,17 +203,19 @@ def participate():
         name = request.form['name']
 
         try:
-            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"email": email, "password": password, "name": name}))
+            createUserResponse = requests.post(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"email": email, "password": password, "name": name}))
             password = None
-            if userKey.status_code == 400:
+            if createUserResponse.status_code == 400:
                 raise Exception
-            createNewSession(session, userKey.json())
+            userKey = createUserResponse.json()["userKey"]
+            displayName = createUserResponse.json()["displayName"]
+            createNewSession(session, userKey, displayName)
             return redirect(url_for("views.feed"))
         except:
             password = None
             pass
 
-    return render_template("participate.html", participateLoginStyle = "", logoutFeedStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
+    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
 
 @views.route("/login/", methods = ["GET", "POST"])
 def login():
@@ -198,17 +226,19 @@ def login():
         password = request.form['password']
 
         try:
-            userKey = requests.post(WebAppPropertiesManager.API_HOST + "/login/", data = json.dumps({"email": email, "password": password}))
+            loginResponse = requests.post(WebAppPropertiesManager.API_HOST + "/login/", data = json.dumps({"email": email, "password": password}))
             password = None
-            if userKey.status_code == 400:
+            if loginResponse.status_code == 400:
                 raise Exception
-            createNewSession(session, userKey.json())
+            userKey = loginResponse.json()["userKey"]
+            displayName = loginResponse.json()["displayName"]
+            createNewSession(session, userKey, displayName)
             return redirect(url_for("views.feed"))
         except:
             password = None
             pass
 
-    return render_template("login.html", participateLoginStyle = "", logoutFeedStyle = "style=\"display: none;\"")
+    return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"")
 
 @views.route("/logout/")
 def logout():

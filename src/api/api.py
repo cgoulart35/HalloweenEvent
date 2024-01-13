@@ -140,12 +140,61 @@ class Users(Resource):
             bytes = value["password"].encode('utf-8')
             salt = bcrypt.gensalt()
             hashedPassword = bcrypt.hashpw(bytes, salt)
+            bytes = None
             value["password"] = None
 
             errorMsg = "No user added."
             userKey = queries.addParticipant(value["name"], value["email"], hashedPassword.decode('utf-8'))
-            return userKey
+            return {"userKey": userKey, "displayName": value["name"]}
         except:
+            bytes = None
+            value["password"] = None
+            abort(400, errorMsg)
+
+    def put(self):
+        value = request.get_data()
+
+        try:
+            errorMsg = "Invalid Request."
+            value = json.loads(value)
+
+            # validate there is a field for userKey (str) email (str) password (str)
+            isInvalid = False
+            isEmailInvalid = False
+            isPasswordInvalid = False
+
+            if "userKey" not in value or value["userKey"] == None or value["userKey"] == "" or type(value["userKey"]) != str:
+                isInvalid = True
+            if "email" not in value or value["email"] == None or value["email"] == "" or type(value["email"]) != str:
+                isEmailInvalid = True
+            if "password" not in value or value["password"] == None or value["password"] == "" or type(value["password"]) != str:
+                isPasswordInvalid = True
+            if isEmailInvalid and isPasswordInvalid:
+                isInvalid = True
+
+            if isInvalid:
+                raise Exception
+
+            userData = queries.getParticipantDataViaUserKey(value["userKey"])
+            
+            # fill in email if we are only updating password
+            if isEmailInvalid:
+                value["email"] = userData["email"]
+
+            # use bcrypt alogrithm to check if password updated and delete password in memory
+            hashedPassword = userData["hashedPassword"].encode('utf-8')
+            bytes = value["password"].encode('utf-8')
+            if not isPasswordInvalid and not bcrypt.checkpw(bytes, hashedPassword):
+                salt = bcrypt.gensalt()
+                hashedPassword = bcrypt.hashpw(bytes, salt)
+            bytes = None
+            value["password"] = None
+
+            errorMsg = "No user updated."
+            queries.updateParticipant(value["userKey"], value["email"], hashedPassword.decode('utf-8'))
+            return {"userKey": value["userKey"], "email": value["email"]}
+        except:
+            bytes = None
             value["password"] = None
             abort(400, errorMsg)
 
@@ -169,17 +218,20 @@ class Login(Resource):
                 raise Exception
 
             errorMsg = "Incorrect email or password."
-            userKey = queries.getParticipantKey(value["email"])
+            userData = queries.getParticipantDataViaEmail(value["email"])
+            userKey = userData[0]
 
             # use bcrypt alogrithm to check password and delete password in memory
-            hashedPassword = queries.getParticipantHashedPassword(userKey)
+            hashedPassword = userData[1]["hashedPassword"].encode('utf-8')
             bytes = value["password"].encode('utf-8')
             if not bcrypt.checkpw(bytes, hashedPassword):
                 raise Exception
+            bytes = None
             value["password"] = None
             
-            return userKey
+            return {"userKey": userKey, "displayName": userData[1]["name"]}
         except:
+            bytes = None
             value["password"] = None
             abort(400, errorMsg)
 
