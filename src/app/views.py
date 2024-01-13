@@ -8,7 +8,7 @@ import requests
 import uuid
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
-from flask import Blueprint, session, render_template, request, redirect, url_for
+from flask import Blueprint, session, request, render_template, redirect, url_for, flash
 
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
@@ -155,9 +155,10 @@ def profile():
             password = None
             if updateProfileResponse.status_code == 400:
                 raise Exception
+            flash("Profile Updated", 'success')
         except:
             password = None
-            pass
+            flash(updateProfileResponse.json()["message"], 'error')
 
     return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session))
 
@@ -174,11 +175,11 @@ def fight():
     scannerUserKey = getSessionUserKey(session)
 
     try:
-        response = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
-        fight = response.json()
-        if fight == False:
-            fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
-            return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
+        fightResponse = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
+        if fightResponse.status_code >= 400:
+            raise Exception
+        flash("Fight Complete", 'success')
+        fight = fightResponse.json()
         if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
             fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{fight["winner"]} defeated {fight["loser"]}.</h3><h5>Time: {fight["time"]}</h5></div></div><hr>'
 
@@ -189,7 +190,10 @@ def fight():
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
                 return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
     except:
-        pass
+        flash(fightResponse.json()["message"], 'error')
+        if fightResponse.status_code == 403:
+            fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
+            return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
 
     return redirect(url_for("views.feed"))
 
@@ -209,11 +213,12 @@ def participate():
                 raise Exception
             userKey = createUserResponse.json()["userKey"]
             displayName = createUserResponse.json()["displayName"]
+            flash("Logged in as " + displayName, 'success')
             createNewSession(session, userKey, displayName)
             return redirect(url_for("views.feed"))
         except:
             password = None
-            pass
+            flash(createUserResponse.json()["message"], 'error')
 
     return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
 
@@ -232,11 +237,12 @@ def login():
                 raise Exception
             userKey = loginResponse.json()["userKey"]
             displayName = loginResponse.json()["displayName"]
+            flash("Logged in as " + displayName, 'success')
             createNewSession(session, userKey, displayName)
             return redirect(url_for("views.feed"))
         except:
             password = None
-            pass
+            flash(loginResponse.json()["message"], 'error')
 
     return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"")
 

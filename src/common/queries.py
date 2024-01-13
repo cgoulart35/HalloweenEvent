@@ -10,7 +10,7 @@ from email.mime.image import MIMEImage
 
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
-from src.common.exceptions import NoParticipantFound
+from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
 #endregion
 
 def getScoreboard():
@@ -42,13 +42,13 @@ def getTopScore():
 
 def performFight(scannedUserKey, scannerUserKey, time):
     if scannedUserKey == scannerUserKey:
-        return False
+        raise NotAllowedToFightSelf
 
     scoreboard = getScoreboard()
     if scoreboard != []:    
         for event in scoreboard:
             if (event["winnerKey"] == scannedUserKey and event["loserKey"] == scannerUserKey) or event["winnerKey"] == scannerUserKey and event["loserKey"] == scannedUserKey:
-                return False
+                raise NotAllowedToFightAgain
 
     scannedUserResult = FirebaseService.get(["halloween-event", "users", scannedUserKey])
     if not scannedUserResult.val():
@@ -101,6 +101,7 @@ def addParticipant(name, email, hashedPassword):
     webAppHost = APIPropertiesManager.WEBAPP_HOST
     try:
         getParticipantDataViaEmail(email)
+        raise EmailInUse
     except NoParticipantFound:
         user = {"name": name, "email": email, "hashedPassword": hashedPassword, "score": 0}
         FirebaseService.push(["halloween-event", "users"], user)

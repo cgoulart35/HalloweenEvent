@@ -6,6 +6,9 @@
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3pro.css">
     <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-orange.css">
     <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
+    {{ toastr.include_jquery() }}
+    {{ toastr.include_toastr_css() }}
+    {{ toastr.message() }}
 </head>
 <body>
     <nav class="w3-sidebar w3-bar-block w3-card" id="mySidebar">
@@ -35,6 +38,7 @@
     <footer class="w3-container w3-theme footer">
         <h1 class="footer-text">Happy Halloween</h3>
     </footer>
+    {{ toastr.include_toastr_js() }}
 </body>
 <script type="text/javascript" src="{{url_for('static', filename='index.js')}}"></script>
 </html>

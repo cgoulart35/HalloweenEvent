@@ -15,7 +15,7 @@ from flask_cors import CORS
 from src.common import queries
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
-from src.common.exceptions import NoParticipantFound
+from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
 #endregion
 
 class CustomFormatter(logging.Formatter):
@@ -113,8 +113,15 @@ class Fight(Resource):
             errorMsg = "No fight occured."
             fight = queries.performFight(value["scannedUserKey"], value["scannerUserKey"], time)
             return fight
-        except:
-            abort(400, errorMsg)
+        except Exception as e:
+            errorCode = 400
+            if isinstance(e, NotAllowedToFightSelf):
+                errorMsg = "You are not allowed to fight yourself."
+                errorCode = 403
+            elif isinstance(e, NotAllowedToFightAgain):
+                errorMsg = "You are not allowed to fight again."
+                errorCode = 403
+            abort(errorCode, errorMsg)
 
 class Users(Resource):
     def post(self):
@@ -147,9 +154,11 @@ class Users(Resource):
             errorMsg = "No user added."
             userKey = queries.addParticipant(value["name"], value["email"], hashedPassword.decode('utf-8'))
             return {"userKey": userKey, "displayName": value["name"]}
-        except:
+        except Exception as e:
             bytes = None
             value["password"] = None
+            if isinstance(e, EmailInUse):
+                errorMsg = "Email already in use."
             abort(400, errorMsg)
 
     def put(self):
@@ -181,11 +190,10 @@ class Users(Resource):
             # fill in email if we are only updating password, else validate new email not in use
             if isEmailInvalid:
                 value["email"] = userData["email"]
-            else:
+            elif value["email"] != userData["email"]:
                 try:
                     queries.getParticipantDataViaEmail(value["email"])
-                    errorMsg = "Email already in use."
-                    raise Exception
+                    raise EmailInUse
                 except NoParticipantFound:
                     pass
 
@@ -201,9 +209,11 @@ class Users(Resource):
             errorMsg = "No user updated."
             queries.updateParticipant(value["userKey"], value["email"], hashedPassword.decode('utf-8'))
             return {"userKey": value["userKey"], "email": value["email"]}
-        except:
+        except Exception as e:
             bytes = None
             value["password"] = None
+            if isinstance(e, EmailInUse):
+                errorMsg = "Email already in use."
             abort(400, errorMsg)
 
 class Login(Resource):
