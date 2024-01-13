@@ -10,6 +10,7 @@ from email.mime.image import MIMEImage
 
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
+from src.common.exceptions import NoParticipantFound
 #endregion
 
 def getScoreboard():
@@ -84,7 +85,7 @@ def performFight(scannedUserKey, scannerUserKey, time):
 def getParticipantDataViaEmail(email):
     result = FirebaseService.getDbObj(["halloween-event", "users"]).order_by_child("email").equal_to(email).get()
     if not result.val():
-        raise Exception
+        raise NoParticipantFound
     return (result.pyres[0].item)
 
 def getParticipantDataViaUserKey(userKey):
@@ -100,7 +101,7 @@ def addParticipant(name, email, hashedPassword):
     webAppHost = APIPropertiesManager.WEBAPP_HOST
     try:
         getParticipantDataViaEmail(email)
-    except:
+    except NoParticipantFound:
         user = {"name": name, "email": email, "hashedPassword": hashedPassword, "score": 0}
         FirebaseService.push(["halloween-event", "users"], user)
 

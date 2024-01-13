@@ -15,6 +15,7 @@ from flask_cors import CORS
 from src.common import queries
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
+from src.common.exceptions import NoParticipantFound
 #endregion
 
 class CustomFormatter(logging.Formatter):
@@ -177,9 +178,16 @@ class Users(Resource):
 
             userData = queries.getParticipantDataViaUserKey(value["userKey"])
             
-            # fill in email if we are only updating password
+            # fill in email if we are only updating password, else validate new email not in use
             if isEmailInvalid:
                 value["email"] = userData["email"]
+            else:
+                try:
+                    queries.getParticipantDataViaEmail(value["email"])
+                    errorMsg = "Email already in use."
+                    raise Exception
+                except NoParticipantFound:
+                    pass
 
             # use bcrypt alogrithm to check if password updated and delete password in memory
             hashedPassword = userData["hashedPassword"].encode('utf-8')
