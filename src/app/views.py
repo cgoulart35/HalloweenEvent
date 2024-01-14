@@ -11,7 +11,7 @@ from PIL import Image
 from io import BytesIO
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
-from flask import Blueprint, session, request, render_template, redirect, url_for, flash, abort
+from flask import Blueprint, session, request, render_template, redirect, url_for, flash
 
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
