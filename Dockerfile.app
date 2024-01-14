@@ -4,6 +4,8 @@ WORKDIR /HalloweenEvent
 
 RUN apt-get update
 RUN apt-get install -y openssl
+RUN apt-get install libzbar0 libzbar-dev -y
+RUN pip install zbarlight
 
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt

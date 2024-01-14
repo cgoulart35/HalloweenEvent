@@ -6,9 +6,12 @@ import sys
 import json
 import requests
 import uuid
+import zbarlight
+from PIL import Image
+from io import BytesIO
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
-from flask import Blueprint, session, request, render_template, redirect, url_for, flash
+from flask import Blueprint, session, request, render_template, redirect, url_for, flash, abort
 
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
@@ -159,10 +162,23 @@ def profile():
         except:
             password = None
             flash(updateProfileResponse.json()["message"], 'error')
+        return redirect(url_for("views.profile"))
 
     return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session))
 
-@views.route("/fight/", methods = ["GET", "POST"])
+@views.route("/scan/", methods = ["POST"])
+def scan():
+    if not sessionExists(session):
+        return redirect(url_for("views.login"))
+    try:
+        file = request.files["file"].read()
+        image = Image.open(BytesIO(file))
+        codes = zbarlight.scan_codes(['qrcode'], image)
+        return (codes[0].decode(), 200)
+    except Exception:
+        return ("Error scanning QR code.", 400)
+
+@views.route("/fight/")
 def fight():
     if sessionExists(session):
         participateLoginStyle = "style=\"display: none;\""
@@ -196,6 +212,13 @@ def fight():
             return render_template("noFight.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
 
     return redirect(url_for("views.feed"))
+
+@views.route("/logout/")
+def logout():
+    if sessionExists(session):
+        endSession(session)
+        return redirect(url_for("views.login"))
+    return ('', 204)
 
 @views.route("/participate/", methods = ["GET", "POST"])
 def participate():
@@ -245,10 +268,3 @@ def login():
             flash(loginResponse.json()["message"], 'error')
 
     return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"")
-
-@views.route("/logout/")
-def logout():
-    if sessionExists(session):
-        endSession(session)
-        return redirect(url_for("views.login"))
-    return ('', 204)
