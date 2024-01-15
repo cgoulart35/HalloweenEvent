@@ -1,0 +1,15 @@
+APScheduler==3.10.4
+bcrypt==4.1.2
+debugpy==1.6.7
+Flask==3.0.0
+Flask-Cors==4.0.0
+Flask-RESTful==0.3.10
+Flask-Toastr==0.5.8
+hypercorn==0.14.4
+Pyrebase4==4.7.1
+qrcode==7.4.2
+qreader==3.12
+--find-links https://download.pytorch.org/whl/torch/
+torch==2.1.2+cpu
+--find-links https://download.pytorch.org/whl/torchvision/
+torchvision==0.16.2+cpu
