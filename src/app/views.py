@@ -6,9 +6,9 @@ import sys
 import json
 import requests
 import uuid
-import zbarlight
-from PIL import Image
-from io import BytesIO
+import cv2
+import numpy
+from qreader import QReader
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
 from flask import Blueprint, session, request, render_template, redirect, url_for, flash
@@ -172,9 +172,11 @@ def scan():
         return redirect(url_for("views.login"))
     try:
         file = request.files["file"].read()
-        image = Image.open(BytesIO(file))
-        codes = zbarlight.scan_codes(['qrcode'], image)
-        return (codes[0].decode(), 200)
+        nparr = numpy.fromstring(file, numpy.uint8)
+        imageNp = cv2.imdecode(nparr, cv2.COLOR_BGR2RGB)
+        qreader = QReader()
+        decodedText = qreader.detect_and_decode(image = imageNp)
+        return (decodedText[0], 200)
     except Exception:
         return ("Error scanning QR code.", 400)
 

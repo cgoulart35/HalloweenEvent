@@ -2,10 +2,10 @@ FROM python:3.9.7 AS stage
 
 WORKDIR /HalloweenEvent
 
-RUN apt-get update
-RUN apt-get install -y openssl
-RUN apt-get install libzbar0 libzbar-dev -y
-RUN pip install zbarlight
+RUN apt-get update \
+    && apt-get install -y openssl \
+    && apt-get install libzbar0 -y \
+    && apt-get install libgl1 -y
 
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
