@@ -149,6 +149,24 @@ body{
     font-size: x-large;
     word-spacing: 5px;
 }
+.loader {
+    border: 16px solid #5f2f87;
+    border-top: 16px solid rgba(201, 0, 205, 1);
+    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    animation: spin 1s linear infinite;
+    position: fixed;
+    margin: auto;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 #cameraFileInput {
     display: none;
 }

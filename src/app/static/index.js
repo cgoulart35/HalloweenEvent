@@ -6,6 +6,14 @@ function closeSidebar() {
   document.getElementById("mySidebar").style.display = "none";
 }
 
+function showLoading() {
+  document.getElementById("loaderElement").style.display = "block";
+}
+
+function hideloading() {
+  document.getElementById("loaderElement").style.display = "none";
+}
+
 function getCameraInputElement() {
   return document.getElementById("cameraFileInput");
 }
@@ -17,6 +25,7 @@ function openCamera() {
 
 function uploadPicture() {
   try {
+    showLoading();
     var picture = getCameraInputElement().files[0];
     var formData = new FormData();
     formData.set('file', picture);
@@ -33,9 +42,11 @@ function uploadPicture() {
       }
     })
     .then(text => {
+      hideloading();
       location.replace(text);
     })
     .catch(response => {
+      hideloading();
       response.text().then(text => {
         if (text !== null && typeof text === "string" && text.length !== 0) {
           toastr.error(text);
@@ -45,9 +56,11 @@ function uploadPicture() {
       });
     });
   } catch (error) {
+    hideloading();
     toastr.error("Error sending QR code.");
   }
 }
 
 closeSidebar();
+hideloading();
 getCameraInputElement().addEventListener('change', uploadPicture, false)
