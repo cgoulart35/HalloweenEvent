@@ -43,7 +43,7 @@ function uploadPicture() {
     })
     .then(text => {
       hideloading();
-      location.replace(text);
+      location = text;
     })
     .catch(response => {
       hideloading();
