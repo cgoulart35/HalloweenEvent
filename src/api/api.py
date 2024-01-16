@@ -152,8 +152,8 @@ class Users(Resource):
             value["password"] = None
 
             errorMsg = "No user added."
-            userKey = queries.addParticipant(value["name"], value["email"], hashedPassword.decode('utf-8'))
-            return {"userKey": userKey, "displayName": value["name"]}
+            addedParticipant = queries.addParticipant(value["name"], value["email"], hashedPassword.decode('utf-8'))
+            return {"userKey": addedParticipant[0], "qrcode": addedParticipant[1], "displayName": value["name"]}
         except Exception as e:
             bytes = None
             value["password"] = None
@@ -237,7 +237,6 @@ class Login(Resource):
 
             errorMsg = "Incorrect email or password."
             userData = queries.getParticipantDataViaEmail(value["email"])
-            userKey = userData[0]
 
             # use bcrypt alogrithm to check password and delete password in memory
             hashedPassword = userData[1]["hashedPassword"].encode('utf-8')
@@ -247,7 +246,7 @@ class Login(Resource):
             bytes = None
             value["password"] = None
             
-            return {"userKey": userKey, "displayName": userData[1]["name"]}
+            return {"userKey": userData[0], "qrcode": userData[1]["qrcode"], "displayName": userData[1]["name"]}
         except:
             bytes = None
             value["password"] = None

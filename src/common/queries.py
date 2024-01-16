@@ -3,6 +3,8 @@ import qrcode
 import random
 import smtplib
 import os
+import base64
+from io import BytesIO
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -110,7 +112,6 @@ def addParticipant(name, email, hashedPassword):
         userKey = userData[0]
 
         # create QR code to fight user
-        
         qrCodeFightUrl = webAppHost + "/fight/?scannedUserKey="
         userQrCode = qrcode.make(qrCodeFightUrl + userKey)
         userQRCodeFileName = userKey + ".png"
@@ -118,6 +119,11 @@ def addParticipant(name, email, hashedPassword):
             os.mkdir('QR Codes')
         userQRCodeFileLoc = "QR Codes/" + userQRCodeFileName
         userQrCode.save(userQRCodeFileLoc)
+
+        # save QR code as base 64 to database
+        with open(userQRCodeFileLoc, "rb") as f:
+            encodedImage = base64.b64encode(f.read()).decode()
+        FirebaseService.set(["halloween-event", "users", userKey, "qrcode"], encodedImage)
 
         # get email properties
         emailReceivers = [email]
@@ -146,9 +152,7 @@ def addParticipant(name, email, hashedPassword):
         server.sendmail(emailSender, emailReceivers, msg.as_string())
         server.quit()
 
-        return userKey
-    
-    raise Exception
+        return (userKey, encodedImage)
 
 def updateParticipant(userKey, email, hashedPassword):
     FirebaseService.set(["halloween-event", "users", userKey, "email"], email)

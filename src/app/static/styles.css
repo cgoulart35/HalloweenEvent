@@ -133,6 +133,11 @@ body{
     margin-right: auto;
     width: 100%;
 }
+.qrcode{
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
 .footer-placeholder{
     position: relative;
     height: 52px;
@@ -150,6 +155,7 @@ body{
     word-spacing: 5px;
 }
 .loader {
+    display: none;
     border: 16px solid #5f2f87;
     border-top: 16px solid rgba(201, 0, 205, 1);
     border-radius: 50%;
@@ -166,6 +172,9 @@ body{
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+#mySidebar {
+    display: none;
 }
 #cameraFileInput {
     display: none;

@@ -8,6 +8,7 @@ import requests
 import uuid
 import cv2
 import numpy
+import base64
 from qreader import QReader
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
@@ -74,8 +75,13 @@ def expireServerSessions():
     for sessionId in expiredSessionIds:
         openSessions.pop(sessionId)
 
-def createNewSession(session, userKey, displayName):
+def createNewSession(session, userKey, encodedImage, displayName):
     global openSessions
+    if not os.path.exists('QR Codes'):
+        os.mkdir('QR Codes')
+    filename = "src/app/static/" + userKey + ".png"
+    with open(filename, 'wb') as f:
+        f.write(base64.decodebytes(encodedImage))
     newSessionId = str(uuid.uuid4())
     openSessions[newSessionId] = {"userKey": userKey, "displayName": displayName, "created": datetime.now()}
     session["sessionId"] = newSessionId
@@ -142,30 +148,6 @@ def feed():
 
     return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = "")
 
-@views.route("/profile/", methods = ["GET", "POST"])
-def profile():
-    if sessionExists(session):
-        participateLoginStyle = "style=\"display: none;\""
-        logoutFeedProfileStyle = ""
-    else:
-        return redirect(url_for("views.login"))
-    if request.method == "POST":
-        email = request.form['email']
-        password = request.form['password']
-
-        try:
-            updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "password": password}))
-            password = None
-            if updateProfileResponse.status_code == 400:
-                raise Exception
-            flash("Profile Updated", 'success')
-        except:
-            password = None
-            flash(updateProfileResponse.json()["message"], 'error')
-        return redirect(url_for("views.profile"))
-
-    return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session))
-
 @views.route("/scan/", methods = ["POST"])
 def scan():
     if not sessionExists(session):
@@ -215,6 +197,41 @@ def fight():
 
     return redirect(url_for("views.feed"))
 
+@views.route("/qrcode/")
+def qrcode():
+    if sessionExists(session):
+        participateLoginStyle = "style=\"display: none;\""
+        logoutFeedProfileStyle = ""
+    else:
+        return redirect(url_for("views.login"))
+
+    qrcodeHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"qrcode\" src=\"{url_for('static', filename=getSessionUserKey(session) + '.png')}\"></div></div><hr>"
+    return render_template("qrcode.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, qrcodeHTML = qrcodeHTML)
+
+@views.route("/profile/", methods = ["GET", "POST"])
+def profile():
+    if sessionExists(session):
+        participateLoginStyle = "style=\"display: none;\""
+        logoutFeedProfileStyle = ""
+    else:
+        return redirect(url_for("views.login"))
+    if request.method == "POST":
+        email = request.form['email']
+        password = request.form['password']
+
+        try:
+            updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "password": password}))
+            password = None
+            if updateProfileResponse.status_code == 400:
+                raise Exception
+            flash("Profile Updated", 'success')
+        except:
+            password = None
+            flash(updateProfileResponse.json()["message"], 'error')
+        return redirect(url_for("views.profile"))
+
+    return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session))
+
 @views.route("/logout/")
 def logout():
     if sessionExists(session):
@@ -237,9 +254,10 @@ def participate():
             if createUserResponse.status_code == 400:
                 raise Exception
             userKey = createUserResponse.json()["userKey"]
+            encodedImage = createUserResponse.json()["qrcode"]
             displayName = createUserResponse.json()["displayName"]
             flash("Logged in as " + displayName, 'success')
-            createNewSession(session, userKey, displayName)
+            createNewSession(session, userKey, encodedImage.encode(), displayName)
             return redirect(url_for("views.feed"))
         except:
             password = None
@@ -261,9 +279,10 @@ def login():
             if loginResponse.status_code == 400:
                 raise Exception
             userKey = loginResponse.json()["userKey"]
+            encodedImage = loginResponse.json()["qrcode"]
             displayName = loginResponse.json()["displayName"]
             flash("Logged in as " + displayName, 'success')
-            createNewSession(session, userKey, displayName)
+            createNewSession(session, userKey, encodedImage.encode(), displayName)
             return redirect(url_for("views.feed"))
         except:
             password = None
