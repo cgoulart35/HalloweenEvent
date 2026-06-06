@@ -158,6 +158,26 @@ def updateParticipant(userKey, email, hashedPassword):
     FirebaseService.set(["halloween-event", "users", userKey, "email"], email)
     FirebaseService.set(["halloween-event", "users", userKey, "hashedPassword"], hashedPassword)    
 
+def styledEmail(contentHtml):
+    # Inline-CSS, table-based HTML email themed to match the app (orange page,
+    # purple header/footer, black cards with yellow text and magenta borders).
+    # Mail clients strip <style>/external CSS, so every rule is inline here.
+    return (
+        '<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffb94f" style="background-color:#ffb94f;margin:0;padding:24px 0;">'
+        '<tr><td align="center">'
+        '<table width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;border-collapse:collapse;">'
+        '<tr><td align="center" bgcolor="#5f2f87" style="background-color:#5f2f87;border:6px solid #c900cd;padding:22px 16px;">'
+        '<div style="font-family:Georgia,serif;font-size:30px;font-weight:bold;color:#ffffff;letter-spacing:3px;">The Long Night</div>'
+        '<div style="font-family:Georgia,serif;font-size:13px;color:#ffb94f;letter-spacing:3px;padding-top:4px;">A StormerG Halloween Game</div>'
+        '</td></tr>'
+        '<tr><td bgcolor="#ffffff" style="background-color:#ffffff;border-left:6px solid #c900cd;border-right:6px solid #c900cd;padding:24px 20px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;color:#000000;">'
+        + contentHtml +
+        '</td></tr>'
+        '<tr><td align="center" bgcolor="#5f2f87" style="background-color:#5f2f87;border:6px solid #c900cd;padding:14px;font-family:Georgia,serif;font-size:18px;letter-spacing:2px;color:#ffffff;">Happy Halloween</td></tr>'
+        '</table>'
+        '</td></tr></table>'
+    )
+
 def emailResults():
     emailHost = APIPropertiesManager.EMAIL_HOST
     emailPort = APIPropertiesManager.EMAIL_PORT
@@ -203,13 +223,26 @@ def emailResults():
     for emailValue in emailDictionary.values():
         emailReceivers = [emailValue["email"]]
 
-        # create an email with users' score, interactions, and win status (if had top score)
-        if emailValue["email"] not in winningEmails:
-            body = f'<br>Hello {emailValue["name"]},<br><br>You have survived The Long Night! However, you did not have the top score of {topScore} points.<br><br>Winners with top score:<ol>{winningNames}</ol><br>Your interactions:<br><ol>{emailValue["interactions"]}</ol><br>Thanks for playing The Long Night!'
+        # Winner and loser emails share one template so they stay consistent --
+        # only the outcome line differs.
+        if emailValue["email"] in winningEmails:
+            outcome = f'Congratulations! You finished with the top score of {topScore} points!'
         else:
-            body = f'<br>Hello {emailValue["name"]},<br><br>Congratulations! You had the top score of {topScore} points!<br><br>Winners with top score:<ol>{winningNames}</ol><br>Your interactions:<br><ol>{emailValue["interactions"]}</ol><br>Thanks for playing The Long Night!'
+            outcome = f'You did not have the top score of {topScore} points this time.'
+        content = (
+            f'<p style="margin:0 0 14px 0;">Hello {emailValue["name"]},</p>'
+            f'<p style="margin:0 0 18px 0;font-size:18px;color:#5f2f87;"><strong>You have survived The Long Night!</strong> {outcome}</p>'
+            f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
+            f'<div style="font-weight:bold;margin-bottom:6px;">Winners with top score</div>'
+            f'<ol style="margin:0;padding-left:22px;">{winningNames}</ol></div>'
+            f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
+            f'<div style="font-weight:bold;margin-bottom:6px;">Your interactions</div>'
+            f'<ol style="margin:0;padding-left:22px;">{emailValue["interactions"]}</ol></div>'
+            f'<p style="margin:8px 0 0 0;">Thanks for playing The Long Night!</p>'
+        )
+        body = styledEmail(content)
 
-        msg = MIMEText('<b>%s</b>' % (body), 'html')
+        msg = MIMEText(body, 'html')
         msg['Subject'] = "Your watch has ended."
         msg['From'] = emailSender
         msg['To'] = ','.join(emailReceivers)

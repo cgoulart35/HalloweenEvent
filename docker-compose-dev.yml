@@ -10,7 +10,7 @@ services:
     env_file: ./api.env
     volumes:
       - ./serviceAccountKey.json:/HalloweenEvent/serviceAccountKey.json
-    restart: no
+    restart: unless-stopped
     init: true
     ports:
       - 5679:5678
@@ -24,7 +24,7 @@ services:
     env_file: ./app.env
     volumes:
       - ./serviceAccountKey.json:/HalloweenEvent/serviceAccountKey.json
-    restart: no
+    restart: unless-stopped
     init: true
     ports:
       - 5680:5678

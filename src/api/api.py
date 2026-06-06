@@ -15,6 +15,7 @@ from flask_cors import CORS
 from src.common import queries
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
+from src.common.eventstate import eventHasEnded
 from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
 #endregion
 
@@ -67,16 +68,17 @@ app = Flask(__name__)
 cors = CORS(app, resources={r"*": {"origins": "*"}})
 api = Api(app)
 
-# create event scheduler for shutdown
-def shutDownApplication():
+# At SCHEDULED_SHUTDOWN_TIME ("The Long Night" ends) email the final results, then
+# stay running in a closed/ended state (see the eventHasEnded gating below) instead
+# of killing the process -- this lets the containers keep running / auto-restart.
+def endEvent():
     try:
         queries.emailResults()
     except Exception:
         logging.error("Error emailing results.")
-    os.system("kill -15 1")
 
 sched = BackgroundScheduler(daemon=True)
-sched.add_job(shutDownApplication, 'date', run_date = datetime.strptime(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
+sched.add_job(endEvent, 'date', run_date = datetime.strptime(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
 sched.start()
 
 class Scoreboard(Resource):
@@ -91,6 +93,8 @@ class Scoreboard(Resource):
 
 class Fight(Resource):
     def post(self):
+        if eventHasEnded(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME):
+            abort(403, "The Long Night has ended.")
         value = request.get_data()
 
         try:
@@ -125,6 +129,8 @@ class Fight(Resource):
 
 class Users(Resource):
     def post(self):
+        if eventHasEnded(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME):
+            abort(403, "The Long Night has ended.")
         value = request.get_data()
 
         try:
