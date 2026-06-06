@@ -1,4 +1,4 @@
-FROM python:3.12 AS stage
+FROM python:3.14 AS stage
 
 WORKDIR /HalloweenEvent
 
