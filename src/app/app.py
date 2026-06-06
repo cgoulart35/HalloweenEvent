@@ -1,6 +1,4 @@
 #region IMPORTS
-import os
-from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, send_from_directory
 from flask_toastr import Toastr
@@ -9,12 +7,10 @@ from src.app.views import views, parentDir, expireServerSessions
 from src.app.properties import WebAppPropertiesManager
 #endregion
 
-# create event scheduler for shutdown and refreshing scoreboard
-def shutDownApplication():
-    os.system("kill -15 1")
-
+# The web app no longer shuts down at SCHEDULED_SHUTDOWN_TIME; views.py serves the
+# closed/ended page once eventHasEnded() is true, so the container keeps running.
+# This scheduler now only refreshes server-side sessions.
 sched = BackgroundScheduler(daemon=True)
-sched.add_job(shutDownApplication, 'date', run_date = datetime.strptime(WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
 sched.add_job(expireServerSessions, 'interval', seconds = 60)
 sched.start()
 

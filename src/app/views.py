@@ -15,9 +15,23 @@ from flask import Blueprint, session, request, render_template, redirect, url_fo
 
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
+from src.common.eventstate import eventHasEnded
 #endregion
 
 views = Blueprint("views", __name__)
+
+@views.before_request
+def gateClosedAfterEvent():
+    # Once The Long Night has ended, keep the app reachable but closed: serve the
+    # "ended" page (with final standings) for every route instead of the game.
+    # Static assets/favicon are served outside this blueprint, so the page still
+    # renders with styling.
+    if eventHasEnded(WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME):
+        scoreboardHTML, topScore = buildScoreboard()
+        return render_template("ended.html",
+                               participateLoginStyle='style="display: none;"',
+                               logoutFeedProfileStyle='style="display: none;"',
+                               scoreboard=scoreboardHTML, topScore=topScore)
 
 class CustomFormatter(logging.Formatter):
     def format(self, record):
@@ -115,6 +129,16 @@ def getScoreboard():
         logger.error(e)
         return None
 
+def buildScoreboard():
+    scoreboardJson = getScoreboard()
+    scoreboardHTML = ""
+    topScore = 0
+    if scoreboardJson != None:
+        for event in scoreboardJson["scoreboard"]:
+            scoreboardHTML += f'<div class="w3-cell-row"><div class="w3-cell w3-container"><h3>{event["winner"]} defeated {event["loser"]}.</h3><h5>Time: {event["time"]}</h5></div></div><hr>'
+        topScore = scoreboardJson["topScore"]
+    return scoreboardHTML, topScore
+
 @views.route("/", defaults = {"path": ""})
 @views.route("/<path:path>")
 def root(path):
@@ -131,16 +155,7 @@ def feed():
     else:
         return redirect(url_for("views.login"))
     try:
-        scoreboardJson = getScoreboard()
-        scoreboardHTML = ""
-        topScore = 0
-
-        if scoreboardJson != None:
-            for event in scoreboardJson["scoreboard"]:
-                scoreboardHTML += f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{event["winner"]} defeated {event["loser"]}.</h3><h5>Time: {event["time"]}</h5></div></div><hr>'
-
-            topScore = scoreboardJson["topScore"]
-
+        scoreboardHTML, topScore = buildScoreboard()
         return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
         pass;  
