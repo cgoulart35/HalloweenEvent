@@ -154,7 +154,7 @@ def scan():
         return redirect(url_for("views.login"))
     try:
         file = request.files["file"].read()
-        nparr = numpy.fromstring(file, numpy.uint8)
+        nparr = numpy.frombuffer(file, numpy.uint8)
         imageNp = cv2.imdecode(nparr, cv2.COLOR_BGR2RGB)
         qreader = QReader()
         decodedText = qreader.detect_and_decode(image = imageNp)
