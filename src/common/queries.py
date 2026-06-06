@@ -85,10 +85,10 @@ def performFight(scannedUserKey, scannerUserKey, time):
     return event
 
 def getParticipantDataViaEmail(email):
-    result = FirebaseService.getDbObj(["halloween-event", "users"]).order_by_child("email").equal_to(email).get()
-    if not result.val():
+    results = FirebaseService.query(["halloween-event", "users"], "email", email)
+    if not results:
         raise NoParticipantFound
-    return (result.pyres[0].item)
+    return results[0]
 
 def getParticipantDataViaUserKey(userKey):
     result = FirebaseService.get(["halloween-event", "users", userKey])

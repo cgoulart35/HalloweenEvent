@@ -2,8 +2,8 @@
 
 Purpose:
 1. Prove every top-level dependency actually imports on the target runtime
-   (Python 3.12 on aarch64) -- this is the canary for the qreader/torch/opencv
-   chain that has historically been fragile on the Pi4.
+   (Python 3.12 on aarch64) -- a canary for the native/opencv/firebase-admin
+   chain that can be fragile on the Pi4.
 2. Lock in the security bumps: VERSION_FLOORS asserts a minimum installed
    version for packages that were bumped to clear an advisory, so a future
    downgrade to a vulnerable version fails the suite.
@@ -26,11 +26,10 @@ TOP_LEVEL_IMPORTS = [
     "flask_restful",
     "flask_toastr",
     "hypercorn",
-    "pyrebase",      # Pyrebase4
+    "firebase_admin",   # replaces Pyrebase4
     "qrcode",
-    "qreader",
-    # runtime-used transitive deps that the app imports directly
-    "cv2",           # opencv
+    # runtime deps the app imports directly
+    "cv2",              # opencv-python (QR detection)
     "numpy",
     "requests",
 ]
@@ -41,7 +40,7 @@ VERSION_FLOORS = {
     "flask": "3.1.3",        # CVE-2026-27205
     "flask-cors": "6.0.0",   # CVE-2024-6839 / 6844 / 6866 (+ PYSEC-2024-71/260)
     "requests": "2.33.0",    # CVE-2024-35195 / 47081 / 2026-25645 / PYSEC-2023-74
-    "torch": "2.9.0",        # PYSEC-2025-203 / 204 / 206
+    "urllib3": "2.5.0",      # CVE-2025-50181 / 66418 / 66471 / 2026-21441 (freed by dropping Pyrebase4)
 }
 
 

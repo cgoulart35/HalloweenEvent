@@ -4,10 +4,10 @@ WORKDIR /HalloweenEvent
 
 RUN apt-get update \
     && apt-get install -y openssl \
-    && apt-get install libzbar0 -y \
     && apt-get install libgl1 -y
 
 COPY requirements.txt requirements.txt
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 COPY . .

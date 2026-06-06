@@ -1,21 +1,20 @@
 APScheduler==3.10.4
 bcrypt==4.1.2
 debugpy==1.6.7
+firebase-admin==7.4.0
 Flask==3.1.3
 Flask-Cors==6.0.2
 Flask-RESTful==0.3.10
 Flask-Toastr==0.5.8
 hypercorn==0.14.4
-Pyrebase4==4.9.0
+numpy==2.4.6
+opencv-python==4.13.0.92
+# qrcode's recommended image backend (was previously present transitively via the
+# torch/ultralytics stack). Required so qrcode.make(...).save(path) keeps working
+# for the per-user QR codes in queries.py.
+Pillow==12.2.0
 qrcode==7.4.2
-qreader==3.12
-# Pinned to a CPU-only aarch64 build (pulled transitively via qreader -> qrdet).
-# 2.9.0 clears PYSEC-2025-203/204/206 and is still CPU-only (~104MB wheel). Left
-# unpinned it floats to 2.12.0, whose aarch64 wheel bundles a ~2GB NVIDIA CUDA 13
-# stack that is dead weight on a Pi4.
-torch==2.9.0
 # Pinned to clear PYSEC-2023-74 / CVE-2024-35195 / CVE-2024-47081 / CVE-2026-25645.
-# Requires Pyrebase4>=4.8 (4.7.1 capped requests<2.30). NOTE: urllib3 stays on
-# 1.26.x because Pyrebase4 still caps urllib3<2; its remaining advisories need
-# urllib3 2.x, which would mean replacing Pyrebase4 (out of scope here).
+# With Pyrebase4 replaced by firebase-admin, urllib3 is no longer capped at <2 and
+# now resolves to a patched 2.x, clearing its advisories as well.
 requests==2.34.2
