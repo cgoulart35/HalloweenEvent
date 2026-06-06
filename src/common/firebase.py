@@ -1,52 +1,50 @@
 #region IMPORTS
 import json
-import pyrebase
+import firebase_admin
+from firebase_admin import credentials, db
 #endregion
 
+class _Result:
+    # thin adapter so existing call sites can keep using .val() (as Pyrebase did)
+    def __init__(self, value):
+        self._value = value
+
+    def val(self):
+        return self._value
+
 class FirebaseService:
-    db = None
-    auth = None
+    app = None
 
     def startFirebaseScheduler(configJson):
-        # initialize firebase and database
-        firebaseConfigJsonObj = json.loads(configJson)
-        firebase = pyrebase.initialize_app(firebaseConfigJsonObj)
-        FirebaseService.db = firebase.database()
-        FirebaseService.auth = firebase.auth()
+        # initialize firebase-admin with the service account + database URL from config
+        config = json.loads(configJson)
+        if not firebase_admin._apps:
+            cred = credentials.Certificate(config["serviceAccount"])
+            FirebaseService.app = firebase_admin.initialize_app(cred, {
+                "databaseURL": config["databaseURL"]
+            })
 
-    def authenticate(username, password):
-        try:
-            FirebaseService.auth.sign_in_with_email_and_password(username, password)
-            return True
-        except:
-            return False
-
-    def getDbObj(children):
-        dbObj = FirebaseService.loopChildren(children)
-        return dbObj
+    def reference(children):
+        return db.reference("/" + "/".join(children))
 
     def get(children):
-        dbObj = FirebaseService.loopChildren(children)
-        return dbObj.get()
+        return _Result(FirebaseService.reference(children).get())
 
     def remove(children):
-        dbObj = FirebaseService.loopChildren(children)
-        dbObj.remove()
+        FirebaseService.reference(children).delete()
 
     def set(children, object):
-        dbObj = FirebaseService.loopChildren(children)
-        dbObj.set(object)
+        FirebaseService.reference(children).set(object)
 
     def push(children, object):
-        dbObj = FirebaseService.loopChildren(children)
-        dbObj.push(object)
+        FirebaseService.reference(children).push(object)
 
     def update(children, object):
-        dbObj = FirebaseService.loopChildren(children)
-        dbObj.update(object)
-    
-    def loopChildren(children):
-        dbObj = FirebaseService.db
-        for child in children:
-            dbObj = dbObj.child(child)
-        return dbObj
+        FirebaseService.reference(children).update(object)
+
+    def query(children, orderByChild, equalTo):
+        # returns a list of (key, value) tuples matching the equality filter
+        result = FirebaseService.reference(children).order_by_child(orderByChild).equal_to(equalTo).get()
+        if not result:
+            return []
+        return list(result.items())

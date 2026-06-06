@@ -1,18 +1,18 @@
-"""Canary for the QR-scan image-preprocessing path in src/app/views.py::scan.
+"""End-to-end canary for the QR-scan path in src/app/views.py::scan.
 
 views.scan() can't be imported directly (its module runs property/Firebase init
-at import time), so this test reproduces exactly the numpy -> cv2 preprocessing
-it performs:
+at import time), so this test reproduces exactly the pipeline it performs:
 
-    nparr = numpy.fromstring(file, numpy.uint8)
-    imageNp = cv2.imdecode(nparr, ...)
+    nparr = numpy.frombuffer(file, numpy.uint8)
+    imageNp = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    decodedText, points, _ = cv2.QRCodeDetector().detectAndDecode(imageNp)
 
-This catches the two realistic breakages from moving to Python 3.12 / newer deps:
-  - numpy 2.x removing/altering numpy.fromstring, and
+This validates the torch-free detector (OpenCV's built-in QRCodeDetector, which
+replaced qreader/torch) and catches the realistic breakages on Python 3.12:
+  - numpy 2.x altering numpy.frombuffer, and
   - an opencv/numpy ABI mismatch ("numpy.core.multiarray failed to import").
 
-The heavy QReader/torch model step (which downloads weights over the network) is
-intentionally NOT exercised here -- this stays a fast, offline test.
+Fast and fully offline (no model weights / network).
 """
 from io import BytesIO
 
@@ -21,23 +21,23 @@ import numpy
 import qrcode
 
 
-def _png_bytes(payload="halloween"):
-    img = qrcode.make(payload).convert("RGB")
+def _png_bytes(payload):
+    img = qrcode.make(payload).get_image()  # underlying PIL image
     buf = BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
 
-def test_views_scan_preprocessing_still_works():
-    file = _png_bytes()
+def test_views_scan_decodes_qr():
+    payload = "halloween-2026"
+    file = _png_bytes(payload)
 
-    # Mirror views.scan() exactly. numpy.frombuffer replaced numpy.fromstring,
-    # whose binary mode was removed in numpy 2.x; it must still produce a buffer
-    # cv2 can decode. (frombuffer returns a read-only array, which is fine here
-    # because cv2.imdecode only reads it.)
+    # Mirror views.scan() exactly.
     nparr = numpy.frombuffer(file, numpy.uint8)
-
-    imageNp = cv2.imdecode(nparr, cv2.COLOR_BGR2RGB)
-
+    imageNp = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     assert imageNp is not None, "cv2.imdecode returned None -- opencv/numpy ABI break"
-    assert imageNp.size > 0
+
+    detector = cv2.QRCodeDetector()
+    decodedText, points, _ = detector.detectAndDecode(imageNp)
+
+    assert decodedText == payload, f"QR round-trip failed: got {decodedText!r}"

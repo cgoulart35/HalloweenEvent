@@ -9,7 +9,6 @@ import uuid
 import cv2
 import numpy
 import base64
-from qreader import QReader
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
 from flask import Blueprint, session, request, render_template, redirect, url_for, flash
@@ -155,10 +154,12 @@ def scan():
     try:
         file = request.files["file"].read()
         nparr = numpy.frombuffer(file, numpy.uint8)
-        imageNp = cv2.imdecode(nparr, cv2.COLOR_BGR2RGB)
-        qreader = QReader()
-        decodedText = qreader.detect_and_decode(image = imageNp)
-        return (decodedText[0], 200)
+        imageNp = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        detector = cv2.QRCodeDetector()
+        decodedText, points, _ = detector.detectAndDecode(imageNp)
+        if not decodedText:
+            return ("Error scanning QR code.", 400)
+        return (decodedText, 200)
     except Exception:
         return ("Error scanning QR code.", 400)
 
