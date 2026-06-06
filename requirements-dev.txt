@@ -2,6 +2,6 @@
 # Dockerfiles (which only install requirements.txt) -- installed ad hoc when
 # running the test/audit suite, e.g.:
 #   pip install -r requirements-dev.txt && pytest && pip-audit
-pytest==8.3.4
-pytest-mock==3.14.0
-pip-audit==2.7.3
+pytest==9.0.3
+pytest-mock==3.15.1
+pip-audit==2.10.0
