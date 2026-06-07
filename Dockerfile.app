@@ -1,6 +1,7 @@
 FROM python:3.12 AS stage
 
 WORKDIR /HalloweenEvent
+ENV PYTHONPATH=/HalloweenEvent
 
 RUN apt-get update \
     && apt-get install -y openssl \
