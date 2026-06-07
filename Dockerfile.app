@@ -1,6 +1,7 @@
 FROM python:3.12 AS stage
 
 WORKDIR /HalloweenEvent
+ENV PYTHONPATH=/HalloweenEvent
 
 RUN apt-get update \
     && apt-get install -y openssl \
@@ -32,4 +33,4 @@ ENTRYPOINT ["python3", "-m", "debugpy", "--wait-for-client", "--listen", "0.0.0.
 
 FROM stage AS prod
 
-ENTRYPOINT ["python3", "-m", "debugpy", "--listen", "0.0.0.0:5678", "src/app/app.py"]
+ENTRYPOINT ["python3", "src/app/app.py"]

@@ -16,6 +16,7 @@ class APIPropertiesManager:
 
     # COMMUNICATION PROPERTIES
     WEBAPP_HOST = None
+    API_KEY = None
 
     # CREDENTIAL PROPERTIES
     FIREBASE_CONFIG_JSON = None
@@ -35,6 +36,7 @@ class APIPropertiesManager:
         APIPropertiesManager.API_PORT =                 APIPropertiesManager.getEnvProperty("API_PORT", "5001")        # not required, usable when not given
 
         APIPropertiesManager.WEBAPP_HOST =              APIPropertiesManager.getEnvProperty("WEBAPP_HOST")             # required
+        APIPropertiesManager.API_KEY =                  APIPropertiesManager.getEnvProperty("API_KEY")                 # required
 
         APIPropertiesManager.FIREBASE_CONFIG_JSON =     APIPropertiesManager.getEnvProperty("FIREBASE_CONFIG_JSON")    # required
 

@@ -18,6 +18,7 @@ from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
 from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
 from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
+from src.common.security import constantTimeEquals
 #endregion
 
 class CustomFormatter(logging.Formatter):
@@ -66,8 +67,16 @@ FirebaseService.startFirebaseScheduler(APIPropertiesManager.FIREBASE_CONFIG_JSON
 
 # Flask REST API
 app = Flask(__name__)
-cors = CORS(app, resources={r"*": {"origins": "*"}})
+cors = CORS(app, resources={r"*": {"origins": [APIPropertiesManager.WEBAPP_HOST]}})
 api = Api(app)
+
+@app.before_request
+def requireApiKey():
+    if request.method == "OPTIONS" or request.path == "/favicon.ico":
+        return
+    key = request.headers.get("X-API-Key", "")
+    if not constantTimeEquals(key, APIPropertiesManager.API_KEY):
+        abort(401, "Unauthorized.")
 
 # Seed the season metadata if missing (non-destructive), then run the lifecycle
 # reconcile loop on an interval. The loop is the single driver of the yearly cycle:
@@ -193,7 +202,19 @@ class Users(Resource):
                 raise Exception
 
             userData = queries.getParticipantDataViaUserKey(value["userKey"])
-            
+
+            # verify current password before allowing any credential change
+            currentPassword = value.get("currentPassword")
+            if not currentPassword or type(currentPassword) != str:
+                errorMsg = "Current password is required."
+                abort(403, errorMsg)
+            currentPasswordBytes = currentPassword.encode('utf-8')
+            if not bcrypt.checkpw(currentPasswordBytes, userData["hashedPassword"].encode('utf-8')):
+                currentPasswordBytes = None
+                errorMsg = "Current password is incorrect."
+                abort(403, errorMsg)
+            currentPasswordBytes = None
+
             # fill in email if we are only updating password, else validate new email not in use
             if isEmailInvalid:
                 value["email"] = userData["email"]

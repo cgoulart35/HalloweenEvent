@@ -17,6 +17,8 @@
             <p><input class="input" type=text name=name required=true placeholder="Display Name"></p>
             <p><input class="input" type=email name=email required=true placeholder="Email"></p>
             <p><input class="input" type=password name=password required=true placeholder="Password"></p>
+            <input type="hidden" name="csrfToken" value="{{csrfToken}}">
+            {% if turnstileSiteKey %}<div class="cf-turnstile" data-sitekey="{{turnstileSiteKey}}"></div>{% endif %}
             <p><input class="button" type = submit value = "Sign Up"></p>
         </form>
      </div>

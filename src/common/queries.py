@@ -14,6 +14,7 @@ from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
 from src.common.eventstate import EVENT_ROOT, getCurrentSeasonWindow
 from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
+from src.common.security import escapeHtml
 #endregion
 
 def getScoreboard():
@@ -133,7 +134,7 @@ def addParticipant(name, email, hashedPassword):
         # the rules and the player's QR code embedded inline
         scoreboardUrl = webAppHost + "/scoreboard/"
         content = (
-            f'<p style="margin:0 0 14px 0;">Hello {name},</p>'
+            f'<p style="margin:0 0 14px 0;">Hello {escapeHtml(name)},</p>'
             f'<p style="margin:0 0 18px 0;font-size:18px;color:#5f2f87;"><strong>Welcome to The Long Night!</strong></p>'
             f'<p style="margin:0 0 14px 0;">You have joined the hunt. Here is how it works:</p>'
             f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
@@ -232,7 +233,7 @@ def emailResults():
 
         if score == topScore:
             winningEmails.append(email)
-            winningNames += f'<li>{name}</li>'
+            winningNames += f'<li>{escapeHtml(name)}</li>'
 
         # create empty buckets for users' interactions
         emailDictionary[userKey] = {"email": email, "name": name, "score": score, "interactions": ""}
@@ -242,8 +243,8 @@ def emailResults():
         winnerKey = event["winnerKey"]
         loserKey = event["loserKey"]
         time = event["time"]
-        emailDictionary[winnerKey]["interactions"] += (f'<li>You defeated {emailDictionary[loserKey]["name"]}. {time}</li>')
-        emailDictionary[loserKey]["interactions"] += (f'<li>You lost to {emailDictionary[winnerKey]["name"]}. {time}</li>')
+        emailDictionary[winnerKey]["interactions"] += (f'<li>You defeated {escapeHtml(emailDictionary[loserKey]["name"])}. {escapeHtml(time)}</li>')
+        emailDictionary[loserKey]["interactions"] += (f'<li>You lost to {escapeHtml(emailDictionary[winnerKey]["name"])}. {escapeHtml(time)}</li>')
     
     # get email properties
     server = smtplib.SMTP_SSL(emailHost, emailPort)
@@ -260,7 +261,7 @@ def emailResults():
         else:
             outcome = f'You did not have the top score of {topScore} points this time.'
         content = (
-            f'<p style="margin:0 0 14px 0;">Hello {emailValue["name"]},</p>'
+            f'<p style="margin:0 0 14px 0;">Hello {escapeHtml(emailValue["name"])},</p>'
             f'<p style="margin:0 0 18px 0;font-size:18px;color:#5f2f87;"><strong>You have survived The Long Night!</strong> {outcome}</p>'
             f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
             f'<div style="font-weight:bold;margin-bottom:6px;">Winners with top score</div>'

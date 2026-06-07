@@ -13,7 +13,6 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - 5681:5678
       - 5007:5004
   halloween-webapp-prod:
     container_name: "HalloweenEventWebApp_prod"
@@ -27,5 +26,4 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - 5682:5678
       - 5009:5004
