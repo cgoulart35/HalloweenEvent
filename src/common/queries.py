@@ -12,11 +12,12 @@ from email.mime.image import MIMEImage
 
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
+from src.common.eventstate import EVENT_ROOT, getCurrentSeasonWindow
 from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
 #endregion
 
 def getScoreboard():
-    result = FirebaseService.get(["halloween-event", "scoreboard"])
+    result = FirebaseService.get([EVENT_ROOT, "scoreboard"])
     if result.val() != None:
         scoreboard = result.val()
         if isinstance(scoreboard, dict):
@@ -27,7 +28,7 @@ def getScoreboard():
         return []
 
 def getTopScore():
-    result = FirebaseService.get(["halloween-event", "users"])
+    result = FirebaseService.get([EVENT_ROOT, "users"])
     if result.val() != None:
         users = result.val()
         if isinstance(users, dict):
@@ -52,12 +53,12 @@ def performFight(scannedUserKey, scannerUserKey, time):
             if (event["winnerKey"] == scannedUserKey and event["loserKey"] == scannerUserKey) or event["winnerKey"] == scannerUserKey and event["loserKey"] == scannedUserKey:
                 raise NotAllowedToFightAgain
 
-    scannedUserResult = FirebaseService.get(["halloween-event", "users", scannedUserKey])
+    scannedUserResult = FirebaseService.get([EVENT_ROOT, "users", scannedUserKey])
     if not scannedUserResult.val():
         raise Exception
     scannedUser = scannedUserResult.val()
 
-    scannerUserResult = FirebaseService.get(["halloween-event", "users", scannerUserKey])
+    scannerUserResult = FirebaseService.get([EVENT_ROOT, "users", scannerUserKey])
     if not scannerUserResult.val():
         raise Exception
     scannerUser = scannerUserResult.val()
@@ -75,23 +76,23 @@ def performFight(scannedUserKey, scannerUserKey, time):
         loser = scannedUser
 
     newWinnerScore = 2 + winner["score"]
-    FirebaseService.set(["halloween-event", "users", winningKey, "score"], newWinnerScore)
+    FirebaseService.set([EVENT_ROOT, "users", winningKey, "score"], newWinnerScore)
     
     newLoserScore = 1 + loser["score"]
-    FirebaseService.set(["halloween-event", "users", losingKey, "score"], newLoserScore)
+    FirebaseService.set([EVENT_ROOT, "users", losingKey, "score"], newLoserScore)
 
     event = {"winner": winner["name"] + f' ({newWinnerScore} pts)', "loser": loser["name"] + f' ({newLoserScore} pts)', "winnerKey": winningKey, "loserKey": losingKey, "time": time}
-    FirebaseService.push(["halloween-event", "scoreboard"], event)
+    FirebaseService.push([EVENT_ROOT, "scoreboard"], event)
     return event
 
 def getParticipantDataViaEmail(email):
-    results = FirebaseService.query(["halloween-event", "users"], "email", email)
+    results = FirebaseService.query([EVENT_ROOT, "users"], "email", email)
     if not results:
         raise NoParticipantFound
     return results[0]
 
 def getParticipantDataViaUserKey(userKey):
-    result = FirebaseService.get(["halloween-event", "users", userKey])
+    result = FirebaseService.get([EVENT_ROOT, "users", userKey])
     return result.val()
 
 def addParticipant(name, email, hashedPassword):
@@ -99,14 +100,14 @@ def addParticipant(name, email, hashedPassword):
     emailPort = APIPropertiesManager.EMAIL_PORT
     emailSender = APIPropertiesManager.EMAIL_SENDER
     emailPassword = APIPropertiesManager.EMAIL_PASSWORD
-    shutdownTime = APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME
+    shutdownTime = getCurrentSeasonWindow()[1]
     webAppHost = APIPropertiesManager.WEBAPP_HOST
     try:
         getParticipantDataViaEmail(email)
         raise EmailInUse
     except NoParticipantFound:
         user = {"name": name, "email": email, "hashedPassword": hashedPassword, "score": 0}
-        FirebaseService.push(["halloween-event", "users"], user)
+        FirebaseService.push([EVENT_ROOT, "users"], user)
 
         userData = getParticipantDataViaEmail(email)
         userKey = userData[0]
@@ -123,22 +124,42 @@ def addParticipant(name, email, hashedPassword):
         # save QR code as base 64 to database
         with open(userQRCodeFileLoc, "rb") as f:
             encodedImage = base64.b64encode(f.read()).decode()
-        FirebaseService.set(["halloween-event", "users", userKey, "qrcode"], encodedImage)
+        FirebaseService.set([EVENT_ROOT, "users", userKey, "qrcode"], encodedImage)
 
         # get email properties
-        emailReceivers = [email]
+        emailReceivers = resolveRecipients([email])
 
-        # create an email with instructions and user's QR code
+        # create a themed welcome email (matches the season-start / results emails) with
+        # the rules and the player's QR code embedded inline
         scoreboardUrl = webAppHost + "/scoreboard/"
-        rules = f'<ol><li>A QR code has been created for you.</li><li>Scan as many other players\' QR codes to fight them once.</li><li>The random winner of a fight will get 2 points and the loser will get 1 point.</li><li>The player with the most points at the end of The Long Night by {shutdownTime} wins.</li><li>You will be sent a summary at the end of The Long Night of who you interacted with!</li><li>Have fun!</li></ol>'
-        body = f'<br>Hello {name},<br><br>Welcome to The Long Night!<br><br>Rules:<br>{rules}<br>Live Scoreboard: {scoreboardUrl}<br><br>Your QR Code:<br>'
+        content = (
+            f'<p style="margin:0 0 14px 0;">Hello {name},</p>'
+            f'<p style="margin:0 0 18px 0;font-size:18px;color:#5f2f87;"><strong>Welcome to The Long Night!</strong></p>'
+            f'<p style="margin:0 0 14px 0;">You have joined the hunt. Here is how it works:</p>'
+            f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
+            f'<div style="font-weight:bold;margin-bottom:6px;">How to play</div>'
+            f'<ol style="margin:0;padding-left:22px;">'
+            f'<li>Scan another player\'s QR code to fight them -- each pair may fight only once.</li>'
+            f'<li>The random winner of a fight gets 2 points; the loser gets 1.</li>'
+            f'<li>Whoever has the most points when The Long Night ends ({shutdownTime}) wins.</li>'
+            f'<li>You will be emailed a summary of everyone you faced when the season ends.</li>'
+            f'</ol></div>'
+            f'<p style="margin:0 0 16px 0;">Live scoreboard: {scoreboardUrl}</p>'
+            f'<p style="margin:0 0 8px 0;font-weight:bold;">Your QR code</p>'
+            f'<div style="text-align:center;margin:0 0 16px 0;">'
+            f'<img src="cid:{userQRCodeFileName}" alt="Your personal QR code" width="220" '
+            f'style="width:220px;max-width:70%;height:auto;background:#ffffff;border:6px solid #c900cd;padding:10px;"/>'
+            f'</div>'
+            f'<p style="margin:8px 0 0 0;">Good luck, and have fun!</p>'
+        )
+        body = styledEmail(content)
         
         msg = MIMEMultipart()
         msg['Subject'] = "Welcome to The Long Night!"
         msg['From'] = emailSender
         msg['To'] = ','.join(emailReceivers)
 
-        msgText = MIMEText('<b>%s</b><br><img src="cid:%s"/><br>' % (body, userQRCodeFileName), 'html')
+        msgText = MIMEText(body, 'html')
         msg.attach(msgText)
 
         with open(userQRCodeFileLoc, 'rb') as fp:
@@ -155,8 +176,17 @@ def addParticipant(name, email, hashedPassword):
         return (userKey, encodedImage)
 
 def updateParticipant(userKey, email, hashedPassword):
-    FirebaseService.set(["halloween-event", "users", userKey, "email"], email)
-    FirebaseService.set(["halloween-event", "users", userKey, "hashedPassword"], hashedPassword)    
+    FirebaseService.set([EVENT_ROOT, "users", userKey, "email"], email)
+    FirebaseService.set([EVENT_ROOT, "users", userKey, "hashedPassword"], hashedPassword)    
+
+def resolveRecipients(recipients):
+    # QA safety net: when EMAIL_OVERRIDE_RECIPIENT is set, redirect ALL outgoing mail to
+    # that single address so no real participants are emailed during testing. In normal
+    # operation it's empty and the intended recipients are used unchanged.
+    override = APIPropertiesManager.EMAIL_OVERRIDE_RECIPIENT
+    if override:
+        return [override]
+    return list(recipients)
 
 def styledEmail(contentHtml):
     # Inline-CSS, table-based HTML email themed to match the app (orange page,
@@ -186,7 +216,7 @@ def emailResults():
     scoreboard = getScoreboard()
     topScore = getTopScore()
 
-    result = FirebaseService.get(["halloween-event", "users"])
+    result = FirebaseService.get([EVENT_ROOT, "users"])
     if result.val() != None:
         users = result.val()
     else:
@@ -221,7 +251,7 @@ def emailResults():
 
     # send out unique emails to all users
     for emailValue in emailDictionary.values():
-        emailReceivers = [emailValue["email"]]
+        emailReceivers = resolveRecipients([emailValue["email"]])
 
         # Winner and loser emails share one template so they stay consistent --
         # only the outcome line differs.
@@ -238,7 +268,8 @@ def emailResults():
             f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
             f'<div style="font-weight:bold;margin-bottom:6px;">Your interactions</div>'
             f'<ol style="margin:0;padding-left:22px;">{emailValue["interactions"]}</ol></div>'
-            f'<p style="margin:8px 0 0 0;">Thanks for playing The Long Night!</p>'
+            f'<p style="margin:8px 0 0 0;">Thanks for playing The Long Night! It returns next '
+            f'October -- watch for an email when the new season begins.</p>'
         )
         body = styledEmail(content)
 

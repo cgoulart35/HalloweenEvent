@@ -15,7 +15,7 @@ from flask import Blueprint, session, request, render_template, redirect, url_fo
 
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
-from src.common.eventstate import eventHasEnded
+from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
 #endregion
 
 views = Blueprint("views", __name__)
@@ -26,7 +26,7 @@ def gateClosedAfterEvent():
     # "ended" page (with final standings) for every route instead of the game.
     # Static assets/favicon are served outside this blueprint, so the page still
     # renders with styling.
-    if eventHasEnded(WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME):
+    if not eventIsOpen(*getCurrentSeasonWindow()):
         scoreboardHTML, topScore = buildScoreboard()
         return render_template("ended.html",
                                participateLoginStyle='style="display: none;"',
@@ -279,7 +279,7 @@ def participate():
             password = None
             flash(createUserResponse.json()["message"], 'error')
 
-    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME)
+    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1])
 
 @views.route("/login/", methods = ["GET", "POST"])
 def login():

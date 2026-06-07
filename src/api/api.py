@@ -13,9 +13,10 @@ from flask_restful import Api, Resource
 from flask_cors import CORS
 
 from src.common import queries
+from src.common import lifecycle
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
-from src.common.eventstate import eventHasEnded
+from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
 from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
 #endregion
 
@@ -68,17 +69,17 @@ app = Flask(__name__)
 cors = CORS(app, resources={r"*": {"origins": "*"}})
 api = Api(app)
 
-# At SCHEDULED_SHUTDOWN_TIME ("The Long Night" ends) email the final results, then
-# stay running in a closed/ended state (see the eventHasEnded gating below) instead
-# of killing the process -- this lets the containers keep running / auto-restart.
-def endEvent():
-    try:
-        queries.emailResults()
-    except Exception:
-        logging.error("Error emailing results.")
+# Seed the season metadata if missing (non-destructive), then run the lifecycle
+# reconcile loop on an interval. The loop is the single driver of the yearly cycle:
+# at season close it emails final results; at the next season open (Oct 1) it archives
+# the finished season to halloween-event-{year}, opens a fresh one, and emails past
+# players. It's idempotent and self-heals across container restarts (nothing depends on
+# hitting an exact instant). next_run_time fires it once immediately on boot for catch-up.
+lifecycle.ensureProvisioned()
 
 sched = BackgroundScheduler(daemon=True)
-sched.add_job(endEvent, 'date', run_date = datetime.strptime(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME, "%m/%d/%y %I:%M:%S %p"))
+sched.add_job(lifecycle.reconcileEventLifecycle, 'interval', minutes = 5,
+              max_instances = 1, coalesce = True, next_run_time = datetime.now())
 sched.start()
 
 class Scoreboard(Resource):
@@ -93,8 +94,8 @@ class Scoreboard(Resource):
 
 class Fight(Resource):
     def post(self):
-        if eventHasEnded(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME):
-            abort(403, "The Long Night has ended.")
+        if not eventIsOpen(*getCurrentSeasonWindow()):
+            abort(403, "The Long Night is closed.")
         value = request.get_data()
 
         try:
@@ -129,8 +130,8 @@ class Fight(Resource):
 
 class Users(Resource):
     def post(self):
-        if eventHasEnded(APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME):
-            abort(403, "The Long Night has ended.")
+        if not eventIsOpen(*getCurrentSeasonWindow()):
+            abort(403, "The Long Night is closed.")
         value = request.get_data()
 
         try:
