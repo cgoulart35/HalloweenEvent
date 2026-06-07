@@ -11,11 +11,13 @@ import numpy
 import base64
 from datetime import datetime, timedelta
 from hypercorn.logging import AccessLogAtoms
-from flask import Blueprint, session, request, render_template, redirect, url_for, flash
+import secrets
+from flask import Blueprint, session, request, render_template, redirect, url_for, flash, abort
 
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
 from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
+from src.common.security import constantTimeEquals, verifyTurnstile, escapeHtml
 #endregion
 
 views = Blueprint("views", __name__)
@@ -119,11 +121,18 @@ def getSessionUserName(session):
     global openSessions
     return openSessions[session["sessionId"]]["displayName"]
 
+def getCsrfToken():
+    if 'csrfToken' not in session:
+        session['csrfToken'] = secrets.token_urlsafe(32)
+    return session['csrfToken']
+
+def _apiHeaders():
+    return {"X-API-Key": WebAppPropertiesManager.API_KEY}
+
 def getScoreboard():
-    # TODO
     try:
         response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
-                                verify=False)
+                                headers=_apiHeaders(), verify=False)
         return response.json()
     except Exception as e:
         logger.error(e)
@@ -135,7 +144,7 @@ def buildScoreboard():
     topScore = 0
     if scoreboardJson != None:
         for event in scoreboardJson["scoreboard"]:
-            scoreboardHTML += f'<div class="w3-cell-row"><div class="w3-cell w3-container"><h3>{event["winner"]} defeated {event["loser"]}.</h3><h5>Time: {event["time"]}</h5></div></div><hr>'
+            scoreboardHTML += f'<div class="w3-cell-row"><div class="w3-cell w3-container"><h3>{escapeHtml(event["winner"])} defeated {escapeHtml(event["loser"])}.</h3><h5>Time: {escapeHtml(event["time"])}</h5></div></div><hr>'
         topScore = scoreboardJson["topScore"]
     return scoreboardHTML, topScore
 
@@ -191,13 +200,13 @@ def fight():
     scannerUserKey = getSessionUserKey(session)
 
     try:
-        fightResponse = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
+        fightResponse = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", headers=_apiHeaders(), data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
         if fightResponse.status_code >= 400:
             raise Exception
         flash("Fight Complete", 'success')
         fight = fightResponse.json()
         if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
-            fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{fight["winner"]} defeated {fight["loser"]}.</h3><h5>Time: {fight["time"]}</h5></div></div><hr>'
+            fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{escapeHtml(fight["winner"])} defeated {escapeHtml(fight["loser"])}.</h3><h5>Time: {escapeHtml(fight["time"])}</h5></div></div><hr>'
 
             if fight["winnerKey"] == scannerUserKey and fight["loserKey"] == scannedUserKey:
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youWon\" src=\"{url_for('static', filename='youWon.png')}\"></div></div><hr>"
@@ -232,21 +241,26 @@ def profile():
     else:
         return redirect(url_for("views.login"))
     if request.method == "POST":
+        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+            abort(400)
         email = request.form['email']
         password = request.form['password']
+        currentPassword = request.form.get('currentPassword', '')
 
         try:
-            updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "password": password}))
+            updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "currentPassword": currentPassword, "password": password}))
             password = None
-            if updateProfileResponse.status_code == 400:
+            currentPassword = None
+            if updateProfileResponse.status_code >= 400:
                 raise Exception
             flash("Profile Updated", 'success')
         except:
             password = None
+            currentPassword = None
             flash(updateProfileResponse.json()["message"], 'error')
         return redirect(url_for("views.profile"))
 
-    return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session))
+    return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session), csrfToken = getCsrfToken())
 
 @views.route("/logout/")
 def logout():
@@ -260,12 +274,19 @@ def participate():
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
+        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+            abort(400)
+        if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
+                               request.form.get('cf-turnstile-response'),
+                               request.remote_addr):
+            flash("CAPTCHA verification failed. Please try again.", 'error')
+            return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1], csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
         email = request.form['email']
         password = request.form['password']
         name = request.form['name']
 
         try:
-            createUserResponse = requests.post(WebAppPropertiesManager.API_HOST + "/users/", data = json.dumps({"email": email, "password": password, "name": name}))
+            createUserResponse = requests.post(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password, "name": name}))
             password = None
             if createUserResponse.status_code == 400:
                 raise Exception
@@ -279,18 +300,25 @@ def participate():
             password = None
             flash(createUserResponse.json()["message"], 'error')
 
-    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1])
+    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1], csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
 
 @views.route("/login/", methods = ["GET", "POST"])
 def login():
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
+        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+            abort(400)
+        if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
+                               request.form.get('cf-turnstile-response'),
+                               request.remote_addr):
+            flash("CAPTCHA verification failed. Please try again.", 'error')
+            return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
         email = request.form['email']
         password = request.form['password']
 
         try:
-            loginResponse = requests.post(WebAppPropertiesManager.API_HOST + "/login/", data = json.dumps({"email": email, "password": password}))
+            loginResponse = requests.post(WebAppPropertiesManager.API_HOST + "/login/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password}))
             password = None
             if loginResponse.status_code == 400:
                 raise Exception
@@ -304,4 +332,4 @@ def login():
             password = None
             flash(loginResponse.json()["message"], 'error')
 
-    return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"")
+    return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)

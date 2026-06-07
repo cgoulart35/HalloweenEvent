@@ -32,4 +32,4 @@ ENTRYPOINT ["python3", "-m", "debugpy", "--wait-for-client", "--listen", "0.0.0.
 
 FROM stage AS prod
 
-ENTRYPOINT ["python3", "-m", "debugpy", "--listen", "0.0.0.0:5678", "src/app/app.py"]
+ENTRYPOINT ["python3", "src/app/app.py"]

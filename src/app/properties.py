@@ -1,6 +1,7 @@
 #region IMPORTS
 import os
 import logging
+import secrets
 
 from src.common.exceptions import PropertyNotSpecified
 #endregion
@@ -17,9 +18,14 @@ class WebAppPropertiesManager:
 
     # COMMUNICATION PROPERTIES
     API_HOST = None
-    
+    API_KEY = None
+
     # CREDENTIAL PROPERTIES
     FIREBASE_CONFIG_JSON = None
+
+    # CAPTCHA PROPERTIES
+    TURNSTILE_SITE_KEY = None
+    TURNSTILE_SECRET_KEY = None
 
     def startPropertyManager():
         # initialize properties
@@ -27,11 +33,19 @@ class WebAppPropertiesManager:
         WebAppPropertiesManager.TZ =                       WebAppPropertiesManager.getEnvProperty("TZ", "America/New_York")         # not required, usable when not given
         WebAppPropertiesManager.LOG_LEVEL =                WebAppPropertiesManager.getEnvProperty("LOG_LEVEL", "INFO")              # not required, usable when not given
         WebAppPropertiesManager.WEBAPP_PORT =              WebAppPropertiesManager.getEnvProperty("WEBAPP_PORT", "5002")            # not required, usable when not given
-        WebAppPropertiesManager.SECRET_KEY =               WebAppPropertiesManager.getEnvProperty("SECRET_KEY", "super secret key") # not required, usable when not given
+        secretKey = os.getenv("SECRET_KEY", "")
+        if not secretKey:
+            secretKey = secrets.token_hex(32)
+            WebAppPropertiesManager.logger.warning("SECRET_KEY not set; using a random per-boot key. Set SECRET_KEY in app.env for stable sessions.")
+        WebAppPropertiesManager.SECRET_KEY = secretKey
 
         WebAppPropertiesManager.API_HOST =                 WebAppPropertiesManager.getEnvProperty("API_HOST")                       # required
+        WebAppPropertiesManager.API_KEY =                  WebAppPropertiesManager.getEnvProperty("API_KEY")                        # required
 
         WebAppPropertiesManager.FIREBASE_CONFIG_JSON =     WebAppPropertiesManager.getEnvProperty("FIREBASE_CONFIG_JSON")           # required
+
+        WebAppPropertiesManager.TURNSTILE_SITE_KEY =       WebAppPropertiesManager.getEnvProperty("TURNSTILE_SITE_KEY", "")         # optional; empty = CAPTCHA disabled
+        WebAppPropertiesManager.TURNSTILE_SECRET_KEY =     WebAppPropertiesManager.getEnvProperty("TURNSTILE_SECRET_KEY", "")       # optional; empty = CAPTCHA disabled
 
     def getEnvProperty(property, default = None):
         value = os.getenv(property)

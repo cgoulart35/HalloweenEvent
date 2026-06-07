@@ -16,6 +16,9 @@ sched.start()
 
 app = Flask(__name__)
 app.secret_key = WebAppPropertiesManager.SECRET_KEY
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.register_blueprint(views, url_prefix="/")
 app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentDir + '/src/common', 'favicon-pumpkin.ico'))
 toastr = Toastr(app)

@@ -8,7 +8,9 @@
     <div class="forms">
         <form action = "{{url_for('views.profile')}}" method = "post">
             <p><input class="input" type = email name = email placeholder="Email"></p>
-            <p><input class="input" type = password name = password placeholder="Password"></p>
+            <p><input class="input" type = password name = password placeholder="New Password"></p>
+            <p><input class="input" type = password name = currentPassword required placeholder="Current Password"></p>
+            <input type="hidden" name="csrfToken" value="{{csrfToken}}">
             <p><input class="button" type = submit value = "Save"></p>
         </form>
      </div>
