@@ -27,6 +27,12 @@ class FirebaseService:
     def reference(children):
         return db.reference("/" + "/".join(children))
 
+    def listRootKeys():
+        # top-level node names (e.g. "halloween-event", "halloween-event-2024").
+        # shallow=True fetches only the keys, not the whole database.
+        data = db.reference("/").get(shallow=True)
+        return list(data.keys()) if data else []
+
     def get(children):
         return _Result(FirebaseService.reference(children).get())
 

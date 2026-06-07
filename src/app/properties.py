@@ -13,7 +13,6 @@ class WebAppPropertiesManager:
     TZ = None
     LOG_LEVEL = None
     WEBAPP_PORT = None
-    SCHEDULED_SHUTDOWN_TIME = None
     SECRET_KEY = None
 
     # COMMUNICATION PROPERTIES
@@ -28,7 +27,6 @@ class WebAppPropertiesManager:
         WebAppPropertiesManager.TZ =                       WebAppPropertiesManager.getEnvProperty("TZ", "America/New_York")         # not required, usable when not given
         WebAppPropertiesManager.LOG_LEVEL =                WebAppPropertiesManager.getEnvProperty("LOG_LEVEL", "INFO")              # not required, usable when not given
         WebAppPropertiesManager.WEBAPP_PORT =              WebAppPropertiesManager.getEnvProperty("WEBAPP_PORT", "5002")            # not required, usable when not given
-        WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME =  WebAppPropertiesManager.getEnvProperty("SCHEDULED_SHUTDOWN_TIME")        # required
         WebAppPropertiesManager.SECRET_KEY =               WebAppPropertiesManager.getEnvProperty("SECRET_KEY", "super secret key") # not required, usable when not given
 
         WebAppPropertiesManager.API_HOST =                 WebAppPropertiesManager.getEnvProperty("API_HOST")                       # required
@@ -75,8 +73,6 @@ class WebAppPropertiesManager:
         if property == "LOG_LEVEL":
             WebAppPropertiesManager.LOG_LEVEL = value
             WebAppPropertiesManager.logger.setLevel(WebAppPropertiesManager.getLogLevel(WebAppPropertiesManager.LOG_LEVEL))
-        elif property == "SCHEDULED_SHUTDOWN_TIME":
-            WebAppPropertiesManager.SCHEDULED_SHUTDOWN_TIME = value
         elif property == "API_HOST":
             WebAppPropertiesManager.API_HOST = value
         else:

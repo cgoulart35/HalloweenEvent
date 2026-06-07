@@ -13,19 +13,19 @@ class APIPropertiesManager:
     TZ = None
     LOG_LEVEL = None
     API_PORT = None
-    SCHEDULED_SHUTDOWN_TIME = None
 
     # COMMUNICATION PROPERTIES
     WEBAPP_HOST = None
-    
+
     # CREDENTIAL PROPERTIES
     FIREBASE_CONFIG_JSON = None
-    
+
     # EMAIL PROPERTIES
     EMAIL_HOST = None
     EMAIL_PORT = None
     EMAIL_SENDER = None
     EMAIL_PASSWORD = None
+    EMAIL_OVERRIDE_RECIPIENT = None  # QA only: redirect ALL mail here when set
 
     def startPropertyManager():
         # initialize properties
@@ -33,7 +33,6 @@ class APIPropertiesManager:
         APIPropertiesManager.TZ =                       APIPropertiesManager.getEnvProperty("TZ", "America/New_York")  # not required, usable when not given
         APIPropertiesManager.LOG_LEVEL =                APIPropertiesManager.getEnvProperty("LOG_LEVEL", "INFO")       # not required, usable when not given
         APIPropertiesManager.API_PORT =                 APIPropertiesManager.getEnvProperty("API_PORT", "5001")        # not required, usable when not given
-        APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME =  APIPropertiesManager.getEnvProperty("SCHEDULED_SHUTDOWN_TIME") # required
 
         APIPropertiesManager.WEBAPP_HOST =              APIPropertiesManager.getEnvProperty("WEBAPP_HOST")             # required
 
@@ -43,6 +42,7 @@ class APIPropertiesManager:
         APIPropertiesManager.EMAIL_PORT =               APIPropertiesManager.getEnvProperty("EMAIL_PORT")              # required
         APIPropertiesManager.EMAIL_SENDER =             APIPropertiesManager.getEnvProperty("EMAIL_SENDER")            # required
         APIPropertiesManager.EMAIL_PASSWORD =           APIPropertiesManager.getEnvProperty("EMAIL_PASSWORD")          # required
+        APIPropertiesManager.EMAIL_OVERRIDE_RECIPIENT = APIPropertiesManager.getEnvProperty("EMAIL_OVERRIDE_RECIPIENT", "")  # QA only, default empty
 
     def getEnvProperty(property, default = None):
         value = os.getenv(property)
@@ -82,8 +82,6 @@ class APIPropertiesManager:
         if property == "LOG_LEVEL":
             APIPropertiesManager.LOG_LEVEL = value
             APIPropertiesManager.logger.setLevel(APIPropertiesManager.getLogLevel(APIPropertiesManager.LOG_LEVEL))
-        elif property == "SCHEDULED_SHUTDOWN_TIME":
-            APIPropertiesManager.SCHEDULED_SHUTDOWN_TIME = value
         elif property == "WEBAPP_HOST":
             APIPropertiesManager.WEBAPP_HOST = value
         elif property == "EMAIL_HOST":

@@ -7,9 +7,9 @@ from src.app.views import views, parentDir, expireServerSessions
 from src.app.properties import WebAppPropertiesManager
 #endregion
 
-# The web app no longer shuts down at SCHEDULED_SHUTDOWN_TIME; views.py serves the
-# closed/ended page once eventHasEnded() is true, so the container keeps running.
-# This scheduler now only refreshes server-side sessions.
+# The web app never shuts down: views.py serves the closed/ended page whenever the
+# season isn't open (see eventIsOpen gating), so the container keeps running year-round.
+# This scheduler only refreshes server-side sessions; the API owns the season lifecycle.
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(expireServerSessions, 'interval', seconds = 60)
 sched.start()

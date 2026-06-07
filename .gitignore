@@ -5,3 +5,7 @@ src/app/__pycache__/
 src/common/__pycache__/
 
 serviceAccountKey.json
+# Local env files (real values live in the GitProjectUpdateHandler Shared dir,
+# copied in at deploy time). Commit only the *.env.example templates.
+api.env
+app.env
