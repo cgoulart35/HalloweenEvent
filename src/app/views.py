@@ -10,7 +10,6 @@ import cv2
 import numpy
 import base64
 from datetime import datetime, timedelta
-from hypercorn.logging import AccessLogAtoms
 import secrets
 from flask import Blueprint, session, request, render_template, redirect, url_for, flash, abort
 
@@ -38,8 +37,6 @@ def gateClosedAfterEvent():
 class CustomFormatter(logging.Formatter):
     def format(self, record):
         if record.args != ():
-            if isinstance(record.args, AccessLogAtoms):
-                return super().format(record)
             argList = []
             for arg in record.args:
                 if arg is None:
@@ -92,8 +89,6 @@ def expireServerSessions():
 
 def createNewSession(session, userKey, encodedImage, displayName):
     global openSessions
-    if not os.path.exists('QR Codes'):
-        os.mkdir('QR Codes')
     filename = "src/app/static/" + userKey + ".png"
     with open(filename, 'wb') as f:
         f.write(base64.decodebytes(encodedImage))
@@ -132,7 +127,7 @@ def _apiHeaders():
 def getScoreboard():
     try:
         response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
-                                headers=_apiHeaders(), verify=False)
+                                headers=_apiHeaders())
         return response.json()
     except Exception as e:
         logger.error(e)
@@ -165,11 +160,10 @@ def feed():
         return redirect(url_for("views.login"))
     try:
         scoreboardHTML, topScore = buildScoreboard()
-        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
-        pass;  
+        scoreboardHTML, topScore = "", 0
 
-    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = "")
+    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = scoreboardHTML, topScore = topScore)
 
 @views.route("/scan/", methods = ["POST"])
 def scan():
@@ -251,6 +245,7 @@ def profile():
         password = request.form['password']
         currentPassword = request.form.get('currentPassword', '')
 
+        updateProfileResponse = None
         try:
             updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "currentPassword": currentPassword, "password": password}))
             password = None
@@ -261,7 +256,10 @@ def profile():
         except:
             password = None
             currentPassword = None
-            flash(updateProfileResponse.json()["message"], 'error')
+            if updateProfileResponse is None:
+                flash("Could not reach the game server. Please try again.", 'error')
+            else:
+                flash(updateProfileResponse.json()["message"], 'error')
         return redirect(url_for("views.profile"))
 
     return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session), csrfToken = getCsrfToken())
@@ -289,6 +287,7 @@ def participate():
         password = request.form['password']
         name = request.form['name']
 
+        createUserResponse = None
         try:
             createUserResponse = requests.post(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password, "name": name}))
             password = None
@@ -302,7 +301,10 @@ def participate():
             return redirect(url_for("views.feed"))
         except:
             password = None
-            flash(createUserResponse.json()["message"], 'error')
+            if createUserResponse is None:
+                flash("Could not reach the game server. Please try again.", 'error')
+            else:
+                flash(createUserResponse.json()["message"], 'error')
 
     return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1], csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
 
@@ -321,6 +323,7 @@ def login():
         email = request.form['email']
         password = request.form['password']
 
+        loginResponse = None
         try:
             loginResponse = requests.post(WebAppPropertiesManager.API_HOST + "/login/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password}))
             password = None
@@ -334,6 +337,9 @@ def login():
             return redirect(url_for("views.feed"))
         except:
             password = None
-            flash(loginResponse.json()["message"], 'error')
+            if loginResponse is None:
+                flash("Could not reach the game server. Please try again.", 'error')
+            else:
+                flash(loginResponse.json()["message"], 'error')
 
     return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)

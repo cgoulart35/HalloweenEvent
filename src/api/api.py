@@ -6,7 +6,6 @@ import sys
 import json
 import bcrypt
 from datetime import datetime
-from hypercorn.logging import AccessLogAtoms
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, abort, send_from_directory, request
 from flask_restful import Api, Resource
@@ -24,8 +23,6 @@ from src.common.security import constantTimeEquals
 class CustomFormatter(logging.Formatter):
     def format(self, record):
         if record.args != ():
-            if isinstance(record.args, AccessLogAtoms):
-                return super().format(record)
             argList = []
             for arg in record.args:
                 if arg is None:
