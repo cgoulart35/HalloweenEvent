@@ -169,7 +169,8 @@ class Users(Resource):
             return {"userKey": addedParticipant[0], "qrcode": addedParticipant[1], "displayName": value["name"]}
         except Exception as e:
             bytes = None
-            value["password"] = None
+            if isinstance(value, dict):
+                value["password"] = None
             if isinstance(e, EmailInUse):
                 errorMsg = "Email already in use."
             abort(400, errorMsg)
@@ -233,8 +234,9 @@ class Users(Resource):
             return {"userKey": value["userKey"], "email": value["email"]}
         except Exception as e:
             bytes = None
-            value["password"] = None
-            value["currentPassword"] = None
+            if isinstance(value, dict):
+                value["password"] = None
+                value["currentPassword"] = None
             if isinstance(e, IncorrectPassword):
                 abort(403, "Current password is incorrect.")
             if isinstance(e, EmailInUse):
@@ -274,7 +276,8 @@ class Login(Resource):
             return {"userKey": userData[0], "qrcode": userData[1]["qrcode"], "displayName": userData[1]["name"]}
         except:
             bytes = None
-            value["password"] = None
+            if isinstance(value, dict):
+                value["password"] = None
             abort(400, errorMsg)
 
 api.add_resource(Scoreboard, '/scoreboard/')

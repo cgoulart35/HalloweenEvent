@@ -131,3 +131,16 @@ def test_get_top_score(monkeypatch):
 def test_get_top_score_empty(monkeypatch):
     monkeypatch.setattr(FirebaseService, "get", lambda children: FakeResult(None))
     assert queries.getTopScore() == 0
+
+
+# --- emailResults ---------------------------------------------------------
+
+def test_email_results_no_users_is_noop(monkeypatch):
+    # A season with zero signups must return cleanly: raising here would leave
+    # resultsEmailed unset, so reconcileEventLifecycle would retry emailResults()
+    # every tick for the rest of the off-season. It must also not open SMTP.
+    monkeypatch.setattr(FirebaseService, "get", lambda children: FakeResult(None))
+    smtp = Mock()
+    monkeypatch.setattr(queries.smtplib, "SMTP_SSL", smtp)
+    assert queries.emailResults() is None
+    smtp.assert_not_called()

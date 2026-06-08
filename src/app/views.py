@@ -291,7 +291,7 @@ def participate():
         try:
             createUserResponse = requests.post(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password, "name": name}))
             password = None
-            if createUserResponse.status_code == 400:
+            if createUserResponse.status_code >= 400:
                 raise Exception
             userKey = createUserResponse.json()["userKey"]
             encodedImage = createUserResponse.json()["qrcode"]
@@ -327,7 +327,7 @@ def login():
         try:
             loginResponse = requests.post(WebAppPropertiesManager.API_HOST + "/login/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password}))
             password = None
-            if loginResponse.status_code == 400:
+            if loginResponse.status_code >= 400:
                 raise Exception
             userKey = loginResponse.json()["userKey"]
             encodedImage = loginResponse.json()["qrcode"]
