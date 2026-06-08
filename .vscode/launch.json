@@ -50,36 +50,6 @@
                     "remoteRoot": "/HalloweenEvent"
                 }
             ]
-        },
-        {
-            "name": "Prod Api Attach Container",
-            "type": "python",
-            "request": "attach",
-            "connect": {
-                "host": "localhost",
-                "port": 5681
-            },
-            "pathMappings": [
-                {
-                    "localRoot": "${workspaceFolder}",
-                    "remoteRoot": "/HalloweenEvent"
-                }
-            ]
-        },
-        {
-            "name": "Prod WebApp Attach Container",
-            "type": "python",
-            "request": "attach",
-            "connect": {
-                "host": "localhost",
-                "port": 5682
-            },
-            "pathMappings": [
-                {
-                    "localRoot": "${workspaceFolder}",
-                    "remoteRoot": "/HalloweenEvent"
-                }
-            ]
         }
     ]
 }

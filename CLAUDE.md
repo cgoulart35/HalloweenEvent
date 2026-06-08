@@ -21,8 +21,10 @@ Two independent Flask apps share `src/common/`:
   are **in-memory server-side** (`openSessions` dict in `views.py`), not signed cookies; a background
   job expires them. QR scanning (`/scan/`) decodes uploads with `cv2.QRCodeDetector`.
 
-Both processes run Flask's built-in werkzeug server via `app.run(...)`, launched under `debugpy`
-(see the Dockerfile entrypoints). This is intentional for a small app behind a Cloudflare tunnel.
+Both processes run Flask's built-in werkzeug server via `app.run(...)` — intentional for a small app
+behind a Cloudflare tunnel. **Prod** launches it directly (`python3 src/...`); only the **dev** Docker
+target wraps it in `debugpy` (see the Dockerfile entrypoints). `PYTHONPATH=/HalloweenEvent`, set in
+both images, keeps `src` importable under the plain-`python3` prod launch.
 
 `src/common/`:
 - `firebase.py` — `FirebaseService`: thin facade over **firebase-admin** Realtime DB
@@ -43,6 +45,21 @@ Both processes run Flask's built-in werkzeug server via `app.run(...)`, launched
 - `lifecycle.py` — **API-only** self-restarting season engine: `ensureProvisioned`, the interval
   `reconcileEventLifecycle` heartbeat, `rolloverEvent` (archive + reset), `sendSeasonStartEmail`,
   `getAllPastParticipantEmails`.
+- `security.py` — shared, dependency-free helpers: `constantTimeEquals` (API-key compare),
+  `verifyTurnstile` (Cloudflare siteverify; returns `True`/bypasses when the secret is blank, for
+  local/QA), `escapeHtml` (markupsafe wrapper for the XSS fix). Safely importable (no Flask/Firebase
+  init at import), so it's unit-tested in `tests/test_security.py`.
+
+### Auth & hardening (web↔API and the web forms)
+
+The API requires a shared secret on every request: header `X-API-Key` matched (constant-time) against
+`API_KEY` via a `@before_request` gate; the web app sends it on all calls (`_apiHeaders()`);
+`/favicon.ico` and `OPTIONS` are exempt. CORS is restricted to `WEBAPP_HOST`. The web app adds
+Cloudflare **Turnstile** on signup/login (verified server-side; **disabled when `TURNSTILE_SECRET_KEY`
+is blank**), per-session **CSRF** tokens on its POST forms (`/scan/` and the QR `GET /fight/` are
+exempt — `SameSite=Lax` covers the latter), `Secure`/`HttpOnly`/`SameSite=Lax` session cookies, and
+`escapeHtml()` on user-supplied names everywhere they're built into HTML or email. `PUT /users/`
+requires the current password (bcrypt-verified) before any credential change.
 
 ### Event lifecycle (read before touching season/scheduler/gating code)
 
@@ -58,7 +75,7 @@ lets QA drop a short window into a **sandbox** `meta` and drive the real app; se
   `Users.post` return 403; `Scoreboard.get` / `Login` stay open.
 - **Lifecycle driver**: the **API** runs `lifecycle.reconcileEventLifecycle` on a 5-min interval
   (single writer). It is idempotent/restart-safe (re-derives state from `meta` + `now`, guarded by
-  the `*Year` flags — nothing depends on hitting an exact instant):
+  the `resultsEmailed` / `startEmailed` flags — nothing depends on hitting an exact instant):
   - at **close** (Nov 1): emails final results once;
   - at the next **open** (Oct 1): archives the finished season to `{EVENT_ROOT}-{year}`, opens a
     fresh empty season, and emails all past players (`sendSeasonStartEmail`).
@@ -132,14 +149,18 @@ signup/login returns HTTP 400.
   whose tracked env files are **blank-secret**; the real values sit in its working tree uncommitted.)
 
 Env vars are loaded in `src/{api,app}/properties.py`. **Required** (`getEnvProperty`) — `api.env`:
-`VERSION`, `WEBAPP_HOST`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_SENDER`,
-`EMAIL_PASSWORD`; `app.env`: `VERSION`, `API_HOST`, `FIREBASE_CONFIG_JSON`. Also recognized
-(optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT` (api);
-`WEBAPP_PORT`, `SECRET_KEY`, `LOG_LEVEL`, `TZ` (app). `EVENT_ROOT` (both apps, default
-`halloween-event`) and `EMAIL_OVERRIDE_RECIPIENT` (api, default empty) are **QA-only** knobs read via
-`os.getenv` — leave unset in production. There is **no** cutoff env var anymore; the season window is
-hardcoded in `eventstate.py` (`SEASON_OPEN` / `SEASON_CLOSE`). Datetime strings still use the
-`"%m/%d/%y %I:%M:%S %p"` format (e.g. `"11/01/26 12:00:00 AM"`).
+`VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`,
+`EMAIL_SENDER`, `EMAIL_PASSWORD`; `app.env`: `VERSION`, `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`.
+`API_KEY` is the shared web↔API secret and **must be identical in both files**. Also recognized
+(optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT` (api); `WEBAPP_PORT`,
+`LOG_LEVEL`, `TZ`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (app). `SECRET_KEY` (app) is read via
+`os.getenv` — if unset, a random per-boot key is generated (sessions reset on restart), so set it for
+stable sessions; the old `"super secret key"` default is gone. Turnstile is **disabled when
+`TURNSTILE_SECRET_KEY` is blank** (so local/QA works without a widget). `EVENT_ROOT` (both apps,
+default `halloween-event`) and `EMAIL_OVERRIDE_RECIPIENT` (api, default empty) are **QA-only** knobs
+read via `os.getenv` — leave unset in production. There is **no** cutoff env var anymore; the season
+window is hardcoded in `eventstate.py` (`SEASON_OPEN` / `SEASON_CLOSE`). Datetime strings still use
+the `"%m/%d/%y %I:%M:%S %p"` format (e.g. `"11/01/26 12:00:00 AM"`).
 
 ## Conventions & gotchas
 

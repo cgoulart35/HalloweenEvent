@@ -199,6 +199,7 @@ def fight():
     scannedUserKey = args.get('scannedUserKey')
     scannerUserKey = getSessionUserKey(session)
 
+    fightResponse = None
     try:
         fightResponse = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", headers=_apiHeaders(), data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
         if fightResponse.status_code >= 400:
@@ -215,6 +216,9 @@ def fight():
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
                 return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
     except:
+        if fightResponse is None:
+            flash("Could not reach the game server. Please try again.", 'error')
+            return redirect(url_for("views.feed"))
         flash(fightResponse.json()["message"], 'error')
         if fightResponse.status_code == 403:
             fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"

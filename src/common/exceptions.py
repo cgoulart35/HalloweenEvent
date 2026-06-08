@@ -12,3 +12,6 @@ class NotAllowedToFightSelf(Exception):
 
 class NotAllowedToFightAgain(Exception):
     pass
+
+class IncorrectPassword(Exception):
+    pass

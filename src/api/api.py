@@ -17,7 +17,7 @@ from src.common import lifecycle
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
 from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
-from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
+from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain, IncorrectPassword
 from src.common.security import constantTimeEquals
 #endregion
 
@@ -203,17 +203,13 @@ class Users(Resource):
 
             userData = queries.getParticipantDataViaUserKey(value["userKey"])
 
-            # verify current password before allowing any credential change
+            # verify current password before allowing any credential change. Raise (don't abort)
+            # here: abort() inside this try would be caught by the except below and remapped to 400.
             currentPassword = value.get("currentPassword")
             if not currentPassword or type(currentPassword) != str:
-                errorMsg = "Current password is required."
-                abort(403, errorMsg)
-            currentPasswordBytes = currentPassword.encode('utf-8')
-            if not bcrypt.checkpw(currentPasswordBytes, userData["hashedPassword"].encode('utf-8')):
-                currentPasswordBytes = None
-                errorMsg = "Current password is incorrect."
-                abort(403, errorMsg)
-            currentPasswordBytes = None
+                raise IncorrectPassword
+            if not bcrypt.checkpw(currentPassword.encode('utf-8'), userData["hashedPassword"].encode('utf-8')):
+                raise IncorrectPassword
 
             # fill in email if we are only updating password, else validate new email not in use
             if isEmailInvalid:
@@ -233,6 +229,7 @@ class Users(Resource):
                 hashedPassword = bcrypt.hashpw(bytes, salt)
             bytes = None
             value["password"] = None
+            value["currentPassword"] = None
 
             errorMsg = "No user updated."
             queries.updateParticipant(value["userKey"], value["email"], hashedPassword.decode('utf-8'))
@@ -240,6 +237,9 @@ class Users(Resource):
         except Exception as e:
             bytes = None
             value["password"] = None
+            value["currentPassword"] = None
+            if isinstance(e, IncorrectPassword):
+                abort(403, "Current password is incorrect.")
             if isinstance(e, EmailInUse):
                 errorMsg = "Email already in use."
             abort(400, errorMsg)
