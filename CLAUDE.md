@@ -157,8 +157,8 @@ Env vars are loaded in `src/{api,app}/properties.py`. **Required** (`getEnvPrope
 `os.getenv` — if unset, a random per-boot key is generated (sessions reset on restart), so set it for
 stable sessions; the old `"super secret key"` default is gone. Turnstile is **disabled when
 `TURNSTILE_SECRET_KEY` is blank** (so local/QA works without a widget). `EVENT_ROOT` (both apps,
-default `halloween-event`) and `EMAIL_OVERRIDE_RECIPIENT` (api, default empty) are **QA-only** knobs
-read via `os.getenv` — leave unset in production. There is **no** cutoff env var anymore; the season
+default `halloween-event`, read via `os.getenv`) and `EMAIL_OVERRIDE_RECIPIENT` (api, default empty,
+a defaulted `getEnvProperty`) are **QA-only** knobs — leave unset in production. There is **no** cutoff env var anymore; the season
 window is hardcoded in `eventstate.py` (`SEASON_OPEN` / `SEASON_CLOSE`). Datetime strings still use
 the `"%m/%d/%y %I:%M:%S %p"` format (e.g. `"11/01/26 12:00:00 AM"`).
 

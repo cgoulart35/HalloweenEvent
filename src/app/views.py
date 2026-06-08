@@ -121,6 +121,12 @@ def getCsrfToken():
         session['csrfToken'] = secrets.token_urlsafe(32)
     return session['csrfToken']
 
+def csrfTokenValid():
+    # Reject when the session has no token (so a blank-vs-blank compare can't pass) and
+    # when the submitted token doesn't match it.
+    sessionToken = session.get('csrfToken', '')
+    return bool(sessionToken) and constantTimeEquals(request.form.get('csrfToken', ''), sessionToken)
+
 def _apiHeaders():
     return {"X-API-Key": WebAppPropertiesManager.API_KEY}
 
@@ -244,7 +250,7 @@ def profile():
     else:
         return redirect(url_for("views.login"))
     if request.method == "POST":
-        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+        if not csrfTokenValid():
             abort(400)
         email = request.form['email']
         password = request.form['password']
@@ -281,7 +287,7 @@ def participate():
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
-        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+        if not csrfTokenValid():
             abort(400)
         if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
                                request.form.get('cf-turnstile-response'),
@@ -318,7 +324,7 @@ def login():
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
-        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+        if not csrfTokenValid():
             abort(400)
         if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
                                request.form.get('cf-turnstile-response'),
