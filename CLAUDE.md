@@ -108,7 +108,7 @@ docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
   halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
 ```
 Single test: append `tests/test_queries.py::test_perform_fight_happy_path` (or `-k <name>`) to pytest.
-`tests/` deliberately exercises only safely-importable code (`queries`, `eventstate`, `lifecycle`,
+`tests/` deliberately exercises only safely-importable code (`queries`, `eventstate`, `lifecycle`, `security`,
 the dep set, the cv2 QR round-trip); `api.py`/`app.py` aren't imported because they run `app.run()` /
 Firebase init at import time. `test_lifecycle.py` drives provision/rollover/reconcile with a tiny
 in-memory `FakeDB` and an injected `now`, mirroring the monkeypatch style in `test_queries.py`.
