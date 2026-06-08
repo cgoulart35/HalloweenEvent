@@ -85,6 +85,23 @@ lets QA drop a short window into a **sandbox** `meta` and drive the real app; se
 The apps **must not** self-terminate (they previously did `os.system("kill -15 1")`); they stay up so
 the containers can auto-restart (`restart: unless-stopped`).
 
+## Skills (`/commands`)
+
+Repo skills live in `.claude/skills/<name>/SKILL.md` (tracked in git) and are invokable as `/<name>`;
+all are also auto-invokable (Claude loads one when a request matches its `description`). They wrap the
+raw commands documented below with the right flags, safety rails, and verification — prefer them over
+hand-running docker/compose:
+
+- **`/prod-up`** — build + start the two prod containers, then verify `ps` + logs.
+- **`/prod-down`** — stop/remove the prod containers (game state is safe in Firebase, not the containers).
+- **`/prod-logs [api|webapp] [N]`** — read-only status + tail logs (never `-f`/follow by default).
+- **`/test [-k … | path | audit]`** — run pytest (or `pip-audit`) the ephemeral-container way.
+- **`/qa [open|tick|close|restart|status|wipe] [--minutes N]`** — drive the isolated QA sandbox
+  lifecycle; isolates via `EVENT_ROOT=qa-halloween-event` passed with `docker compose run -e …`, so it
+  never touches real data and (in its core path) never edits `api.env`/`app.env`.
+- **`/preflight`** — pre-flight checks, then hand the trigger to the user, then post-deploy verify; it
+  **never** pushes, merges, or deploys on its own (deploys are webhook-driven — see Deployment).
+
 ## Common commands
 
 All commands assume repo root and that `api.env`, `app.env`, and `serviceAccountKey.json` exist
