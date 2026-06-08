@@ -72,9 +72,11 @@ flowchart TD
 Two independent Flask apps share `src/common/`:
 
 - **API** (`src/api/api.py`, port **5007**, HTTP) — Flask-RESTful resources: `Scoreboard` (GET),
-  `Fight` (POST), `Users` (POST register / PUT update), `Login` (POST). Owns the season lifecycle.
+  `Fight` (POST), `Users` (POST register / PUT update), `Login` (POST); every request requires the
+  `X-API-Key` header. Owns the season lifecycle.
 - **Web app** (`src/app/app.py` + `src/app/views.py`, port **5009**, HTTPS self-signed) — renders
-  Jinja templates and calls the API. Server-side in-memory sessions; QR scanning via `cv2`.
+  Jinja templates and calls the API (sending the shared `X-API-Key`). Server-side in-memory sessions;
+  Cloudflare Turnstile + CSRF tokens on its forms; QR scanning via `cv2`.
 
 `src/common/`: `firebase.py` (DB facade), `queries.py` (game logic + email), `eventstate.py` (the
 seasonal calendar / gating), `lifecycle.py` (archive + reset + promo engine, API-only).
@@ -159,10 +161,13 @@ Notes:
 
 Env vars are loaded in `src/{api,app}/properties.py`.
 
-- **`api.env`** (required): `VERSION`, `WEBAPP_HOST`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`,
+- **`api.env`** (required): `VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`,
   `EMAIL_PORT`, `EMAIL_SENDER`, `EMAIL_PASSWORD`. Optional: `API_PORT`, `LOG_LEVEL`, `TZ`.
-- **`app.env`** (required): `VERSION`, `API_HOST`, `FIREBASE_CONFIG_JSON`. Optional: `WEBAPP_PORT`,
-  `SECRET_KEY`, `LOG_LEVEL`, `TZ`.
+- **`app.env`** (required): `VERSION`, `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`. Optional:
+  `WEBAPP_PORT`, `SECRET_KEY`, `LOG_LEVEL`, `TZ`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`.
+- `API_KEY` is the shared web↔API secret and **must match in both files**. `SECRET_KEY` falls back to
+  a random per-boot key if unset (set it for stable sessions). Cloudflare **Turnstile** on
+  signup/login is disabled when `TURNSTILE_SECRET_KEY` is blank.
 - **QA-only** (leave unset in production): `EVENT_ROOT` (both apps; sandbox DB node) and
   `EMAIL_OVERRIDE_RECIPIENT` (api; redirect all outgoing mail).
 

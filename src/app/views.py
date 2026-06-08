@@ -10,7 +10,6 @@ import cv2
 import numpy
 import base64
 from datetime import datetime, timedelta
-from hypercorn.logging import AccessLogAtoms
 import secrets
 from flask import Blueprint, session, request, render_template, redirect, url_for, flash, abort
 
@@ -38,8 +37,6 @@ def gateClosedAfterEvent():
 class CustomFormatter(logging.Formatter):
     def format(self, record):
         if record.args != ():
-            if isinstance(record.args, AccessLogAtoms):
-                return super().format(record)
             argList = []
             for arg in record.args:
                 if arg is None:
@@ -92,8 +89,6 @@ def expireServerSessions():
 
 def createNewSession(session, userKey, encodedImage, displayName):
     global openSessions
-    if not os.path.exists('QR Codes'):
-        os.mkdir('QR Codes')
     filename = "src/app/static/" + userKey + ".png"
     with open(filename, 'wb') as f:
         f.write(base64.decodebytes(encodedImage))
@@ -126,13 +121,24 @@ def getCsrfToken():
         session['csrfToken'] = secrets.token_urlsafe(32)
     return session['csrfToken']
 
+def csrfTokenValid():
+    # Reject when the session has no token (so a blank-vs-blank compare can't pass) and
+    # when the submitted token doesn't match it.
+    sessionToken = session.get('csrfToken', '')
+    return bool(sessionToken) and constantTimeEquals(request.form.get('csrfToken', ''), sessionToken)
+
 def _apiHeaders():
     return {"X-API-Key": WebAppPropertiesManager.API_KEY}
 
 def getScoreboard():
     try:
         response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
-                                headers=_apiHeaders(), verify=False)
+                                headers=_apiHeaders())
+        # An error response (e.g. the API's own 400/401) is JSON without a "scoreboard"
+        # key; return None so callers degrade to an empty board instead of KeyError-ing.
+        # Matters for the off-season gate, which calls buildScoreboard() unguarded.
+        if response.status_code >= 400:
+            return None
         return response.json()
     except Exception as e:
         logger.error(e)
@@ -165,11 +171,10 @@ def feed():
         return redirect(url_for("views.login"))
     try:
         scoreboardHTML, topScore = buildScoreboard()
-        return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = scoreboardHTML, topScore = topScore)
     except Exception:
-        pass;  
+        scoreboardHTML, topScore = "", 0
 
-    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = "")
+    return render_template("feed.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, scoreboard = scoreboardHTML, topScore = topScore)
 
 @views.route("/scan/", methods = ["POST"])
 def scan():
@@ -199,6 +204,7 @@ def fight():
     scannedUserKey = args.get('scannedUserKey')
     scannerUserKey = getSessionUserKey(session)
 
+    fightResponse = None
     try:
         fightResponse = requests.post(WebAppPropertiesManager.API_HOST + "/fight/", headers=_apiHeaders(), data = json.dumps({"scannedUserKey": scannedUserKey, "scannerUserKey": scannerUserKey}))
         if fightResponse.status_code >= 400:
@@ -215,6 +221,9 @@ def fight():
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youDied\" src=\"{url_for('static', filename='youDied.png')}\"></div></div><hr>"
                 return render_template("youLost.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, fightHTML = fightHTML)
     except:
+        if fightResponse is None:
+            flash("Could not reach the game server. Please try again.", 'error')
+            return redirect(url_for("views.feed"))
         flash(fightResponse.json()["message"], 'error')
         if fightResponse.status_code == 403:
             fightHTML = f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"niceTry\" src=\"{url_for('static', filename='niceTry.png')}\"></div></div><hr>"
@@ -241,12 +250,13 @@ def profile():
     else:
         return redirect(url_for("views.login"))
     if request.method == "POST":
-        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+        if not csrfTokenValid():
             abort(400)
         email = request.form['email']
         password = request.form['password']
         currentPassword = request.form.get('currentPassword', '')
 
+        updateProfileResponse = None
         try:
             updateProfileResponse = requests.put(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"userKey": getSessionUserKey(session), "email": email, "currentPassword": currentPassword, "password": password}))
             password = None
@@ -257,7 +267,10 @@ def profile():
         except:
             password = None
             currentPassword = None
-            flash(updateProfileResponse.json()["message"], 'error')
+            if updateProfileResponse is None:
+                flash("Could not reach the game server. Please try again.", 'error')
+            else:
+                flash(updateProfileResponse.json()["message"], 'error')
         return redirect(url_for("views.profile"))
 
     return render_template("profile.html", participateLoginStyle = participateLoginStyle, logoutFeedProfileStyle = logoutFeedProfileStyle, displayName = getSessionUserName(session), csrfToken = getCsrfToken())
@@ -274,7 +287,7 @@ def participate():
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
-        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+        if not csrfTokenValid():
             abort(400)
         if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
                                request.form.get('cf-turnstile-response'),
@@ -285,10 +298,11 @@ def participate():
         password = request.form['password']
         name = request.form['name']
 
+        createUserResponse = None
         try:
             createUserResponse = requests.post(WebAppPropertiesManager.API_HOST + "/users/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password, "name": name}))
             password = None
-            if createUserResponse.status_code == 400:
+            if createUserResponse.status_code >= 400:
                 raise Exception
             userKey = createUserResponse.json()["userKey"]
             encodedImage = createUserResponse.json()["qrcode"]
@@ -298,7 +312,10 @@ def participate():
             return redirect(url_for("views.feed"))
         except:
             password = None
-            flash(createUserResponse.json()["message"], 'error')
+            if createUserResponse is None:
+                flash("Could not reach the game server. Please try again.", 'error')
+            else:
+                flash(createUserResponse.json()["message"], 'error')
 
     return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1], csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
 
@@ -307,7 +324,7 @@ def login():
     if sessionExists(session):
         return redirect(url_for("views.feed"))
     if request.method == "POST":
-        if not constantTimeEquals(request.form.get('csrfToken', ''), session.get('csrfToken', '')):
+        if not csrfTokenValid():
             abort(400)
         if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
                                request.form.get('cf-turnstile-response'),
@@ -317,10 +334,11 @@ def login():
         email = request.form['email']
         password = request.form['password']
 
+        loginResponse = None
         try:
             loginResponse = requests.post(WebAppPropertiesManager.API_HOST + "/login/", headers=_apiHeaders(), data = json.dumps({"email": email, "password": password}))
             password = None
-            if loginResponse.status_code == 400:
+            if loginResponse.status_code >= 400:
                 raise Exception
             userKey = loginResponse.json()["userKey"]
             encodedImage = loginResponse.json()["qrcode"]
@@ -330,6 +348,9 @@ def login():
             return redirect(url_for("views.feed"))
         except:
             password = None
-            flash(loginResponse.json()["message"], 'error')
+            if loginResponse is None:
+                flash("Could not reach the game server. Please try again.", 'error')
+            else:
+                flash(loginResponse.json()["message"], 'error')
 
     return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)

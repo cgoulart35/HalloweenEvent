@@ -1,4 +1,8 @@
 .vscode/
+.git/
+
+Logs/
+QR Codes/
 
 __pycache__/
 src/__pycache__/

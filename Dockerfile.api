@@ -3,20 +3,11 @@ FROM python:3.12 AS stage
 WORKDIR /HalloweenEvent
 ENV PYTHONPATH=/HalloweenEvent
 
-RUN apt-get update
-RUN apt-get install -y openssl
-
 COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 COPY . .
-
-RUN openssl genrsa -des3 -passout pass:api -out server.pass.key 2048
-RUN openssl rsa -passin pass:api -in server.pass.key -out server.key
-RUN rm server.pass.key
-RUN openssl req -new -key server.key -out server.csr -subj "/C=US/CN=HalloweenEventApi"
-RUN openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
 
 ##########################
 # develop

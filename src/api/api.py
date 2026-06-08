@@ -6,7 +6,6 @@ import sys
 import json
 import bcrypt
 from datetime import datetime
-from hypercorn.logging import AccessLogAtoms
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, abort, send_from_directory, request
 from flask_restful import Api, Resource
@@ -17,15 +16,13 @@ from src.common import lifecycle
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
 from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
-from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
+from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain, IncorrectPassword
 from src.common.security import constantTimeEquals
 #endregion
 
 class CustomFormatter(logging.Formatter):
     def format(self, record):
         if record.args != ():
-            if isinstance(record.args, AccessLogAtoms):
-                return super().format(record)
             argList = []
             for arg in record.args:
                 if arg is None:
@@ -172,7 +169,8 @@ class Users(Resource):
             return {"userKey": addedParticipant[0], "qrcode": addedParticipant[1], "displayName": value["name"]}
         except Exception as e:
             bytes = None
-            value["password"] = None
+            if isinstance(value, dict):
+                value["password"] = None
             if isinstance(e, EmailInUse):
                 errorMsg = "Email already in use."
             abort(400, errorMsg)
@@ -203,17 +201,13 @@ class Users(Resource):
 
             userData = queries.getParticipantDataViaUserKey(value["userKey"])
 
-            # verify current password before allowing any credential change
+            # verify current password before allowing any credential change. Raise (don't abort)
+            # here: abort() inside this try would be caught by the except below and remapped to 400.
             currentPassword = value.get("currentPassword")
             if not currentPassword or type(currentPassword) != str:
-                errorMsg = "Current password is required."
-                abort(403, errorMsg)
-            currentPasswordBytes = currentPassword.encode('utf-8')
-            if not bcrypt.checkpw(currentPasswordBytes, userData["hashedPassword"].encode('utf-8')):
-                currentPasswordBytes = None
-                errorMsg = "Current password is incorrect."
-                abort(403, errorMsg)
-            currentPasswordBytes = None
+                raise IncorrectPassword
+            if not bcrypt.checkpw(currentPassword.encode('utf-8'), userData["hashedPassword"].encode('utf-8')):
+                raise IncorrectPassword
 
             # fill in email if we are only updating password, else validate new email not in use
             if isEmailInvalid:
@@ -227,19 +221,26 @@ class Users(Resource):
 
             # use bcrypt alogrithm to check if password updated and delete password in memory
             hashedPassword = userData["hashedPassword"].encode('utf-8')
-            bytes = value["password"].encode('utf-8')
+            # password may be absent here (email-only update is allowed), so don't index it
+            # directly -- it's only actually used when isPasswordInvalid is False.
+            bytes = (value.get("password") or "").encode('utf-8')
             if not isPasswordInvalid and not bcrypt.checkpw(bytes, hashedPassword):
                 salt = bcrypt.gensalt()
                 hashedPassword = bcrypt.hashpw(bytes, salt)
             bytes = None
             value["password"] = None
+            value["currentPassword"] = None
 
             errorMsg = "No user updated."
             queries.updateParticipant(value["userKey"], value["email"], hashedPassword.decode('utf-8'))
             return {"userKey": value["userKey"], "email": value["email"]}
         except Exception as e:
             bytes = None
-            value["password"] = None
+            if isinstance(value, dict):
+                value["password"] = None
+                value["currentPassword"] = None
+            if isinstance(e, IncorrectPassword):
+                abort(403, "Current password is incorrect.")
             if isinstance(e, EmailInUse):
                 errorMsg = "Email already in use."
             abort(400, errorMsg)
@@ -277,7 +278,8 @@ class Login(Resource):
             return {"userKey": userData[0], "qrcode": userData[1]["qrcode"], "displayName": userData[1]["name"]}
         except:
             bytes = None
-            value["password"] = None
+            if isinstance(value, dict):
+                value["password"] = None
             abort(400, errorMsg)
 
 api.add_resource(Scoreboard, '/scoreboard/')
@@ -285,8 +287,7 @@ api.add_resource(Fight, '/fight/')
 api.add_resource(Users, '/users/')
 api.add_resource(Login, '/login/')
 app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentDir + '/src/common', 'favicon-pumpkin.ico'))
+# HTTP only: the API runs behind the Cloudflare tunnel and is reached by the web app
+# over the LAN (API_HOST). TLS terminates at the tunnel, so no ssl_context here.
 app.run(host='0.0.0.0',
-        port=APIPropertiesManager.API_PORT,
-        # TODO
-        # ssl_context=('/HalloweenEvent/server.crt', '/HalloweenEvent/server.key')
-        )
+        port=APIPropertiesManager.API_PORT)

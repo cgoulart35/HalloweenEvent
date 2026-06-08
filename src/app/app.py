@@ -25,6 +25,5 @@ toastr = Toastr(app)
 app.config['TOASTR_OPACITY'] = False
 app.run(host='0.0.0.0',
         port=WebAppPropertiesManager.WEBAPP_PORT,
-        # TODO
         ssl_context=('/HalloweenEvent/server.crt', '/HalloweenEvent/server.key')
         )

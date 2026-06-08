@@ -217,11 +217,11 @@ def emailResults():
     scoreboard = getScoreboard()
     topScore = getTopScore()
 
-    result = FirebaseService.get([EVENT_ROOT, "users"])
-    if result.val() != None:
-        users = result.val()
-    else:
-        raise Exception
+    users = FirebaseService.get([EVENT_ROOT, "users"]).val()
+    if not users:
+        # No participants this season -> nothing to email. Return cleanly so the lifecycle
+        # marks results as sent; raising here would make reconcile retry every tick for months.
+        return
 
     emailDictionary = dict()
     winningEmails = []

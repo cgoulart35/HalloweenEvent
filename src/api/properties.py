@@ -33,7 +33,7 @@ class APIPropertiesManager:
         APIPropertiesManager.VERSION =                  APIPropertiesManager.getEnvProperty("VERSION")                 # required
         APIPropertiesManager.TZ =                       APIPropertiesManager.getEnvProperty("TZ", "America/New_York")  # not required, usable when not given
         APIPropertiesManager.LOG_LEVEL =                APIPropertiesManager.getEnvProperty("LOG_LEVEL", "INFO")       # not required, usable when not given
-        APIPropertiesManager.API_PORT =                 APIPropertiesManager.getEnvProperty("API_PORT", "5001")        # not required, usable when not given
+        APIPropertiesManager.API_PORT =                 APIPropertiesManager.getEnvProperty("API_PORT", "5004")        # not required, usable when not given
 
         APIPropertiesManager.WEBAPP_HOST =              APIPropertiesManager.getEnvProperty("WEBAPP_HOST")             # required
         APIPropertiesManager.API_KEY =                  APIPropertiesManager.getEnvProperty("API_KEY")                 # required

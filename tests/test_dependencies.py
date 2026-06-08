@@ -25,7 +25,6 @@ TOP_LEVEL_IMPORTS = [
     "flask_cors",
     "flask_restful",
     "flask_toastr",
-    "hypercorn",
     "firebase_admin",   # replaces Pyrebase4
     "qrcode",
     # runtime deps the app imports directly
