@@ -128,6 +128,11 @@ def getScoreboard():
     try:
         response = requests.get(WebAppPropertiesManager.API_HOST + "/scoreboard/",
                                 headers=_apiHeaders())
+        # An error response (e.g. the API's own 400/401) is JSON without a "scoreboard"
+        # key; return None so callers degrade to an empty board instead of KeyError-ing.
+        # Matters for the off-season gate, which calls buildScoreboard() unguarded.
+        if response.status_code >= 400:
+            return None
         return response.json()
     except Exception as e:
         logger.error(e)

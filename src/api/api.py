@@ -221,7 +221,9 @@ class Users(Resource):
 
             # use bcrypt alogrithm to check if password updated and delete password in memory
             hashedPassword = userData["hashedPassword"].encode('utf-8')
-            bytes = value["password"].encode('utf-8')
+            # password may be absent here (email-only update is allowed), so don't index it
+            # directly -- it's only actually used when isPasswordInvalid is False.
+            bytes = (value.get("password") or "").encode('utf-8')
             if not isPasswordInvalid and not bcrypt.checkpw(bytes, hashedPassword):
                 salt = bcrypt.gensalt()
                 hashedPassword = bcrypt.hashpw(bytes, salt)
@@ -285,8 +287,7 @@ api.add_resource(Fight, '/fight/')
 api.add_resource(Users, '/users/')
 api.add_resource(Login, '/login/')
 app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentDir + '/src/common', 'favicon-pumpkin.ico'))
+# HTTP only: the API runs behind the Cloudflare tunnel and is reached by the web app
+# over the LAN (API_HOST). TLS terminates at the tunnel, so no ssl_context here.
 app.run(host='0.0.0.0',
-        port=APIPropertiesManager.API_PORT,
-        # TODO
-        # ssl_context=('/HalloweenEvent/server.crt', '/HalloweenEvent/server.key')
-        )
+        port=APIPropertiesManager.API_PORT)
