@@ -262,11 +262,36 @@ def test_email_results_sends_code_to_exactly_one_winner(monkeypatch, sent_mail):
     withCode = [(receivers, message) for receivers, message in sent_mail if "SPOOKY-123" in message]
     assert len(withCode) == 1
     assert withCode[0][0] == ["a@x.com"]
+    # a short code uses the letter-spaced code box, not a link
+    assert "redeem with this code:" in withCode[0][1]
+    assert "<a href=" not in withCode[0][1]
     # everyone is told what the prize was and who claimed it (incl. the tie note)
     for _, message in sent_mail:
         assert "$50 gift card" in message
         assert "goes to <strong>Alice</strong>" in message
         assert "Tie broken by most fight wins" in message
+
+
+def test_email_results_renders_url_code_as_link(monkeypatch, sent_mail):
+    # When the code is a redemption URL it becomes a tappable link (not a
+    # letter-spaced code box), and query-string ampersands are HTML-escaped.
+    url = "https://www.amazon.com/gc/redeem?code=ABC-123&x=1"
+    _setGiftCard(monkeypatch, code=url)
+    users = {
+        "k1": {"name": "Alice", "email": "a@x.com", "score": 4},
+        "k2": {"name": "Bob", "email": "b@x.com", "score": 2},
+    }
+    scoreboard = {"s1": _fight("k1", "k2", "10/01/26 01:00:00 PM")}
+    monkeypatch.setattr(FirebaseService, "get", make_get(users, scoreboard))
+
+    queries.emailResults(2026)
+
+    winner = [m for r, m in sent_mail if r == ["a@x.com"]][0]
+    loser = [m for r, m in sent_mail if r == ["b@x.com"]][0]
+    assert 'href="https://www.amazon.com/gc/redeem?code=ABC-123&amp;x=1"' in winner
+    assert "redeem here:" in winner
+    assert "redeem with this code:" not in winner  # URL branch, not the code box
+    assert "<a href=" not in loser                  # only the winner gets the link
 
 
 def test_email_results_inactive_gift_card_mentions_nothing(monkeypatch, sent_mail):

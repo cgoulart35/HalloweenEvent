@@ -191,7 +191,7 @@ An optional prize for the season's top scorer, driven by three `api.env` vars:
 | var | example | meaning |
 | --- | --- | --- |
 | `GIFT_CARD_LABEL` | `$50 Amazon gift card` | what players are playing for (shown in emails) |
-| `GIFT_CARD_CODE` | `XXXX-YYYY-ZZZZ` | the secret redemption code (emailed to the winner only) |
+| `GIFT_CARD_CODE` | `XXXX-YYYY-ZZZZ` or a redemption URL | the secret code, emailed to the winner only (an `http(s)` URL renders as a clickable link, a plain code as a letter-spaced box) |
 | `GIFT_CARD_YEAR` | `2026` | the season year this card is for |
 
 The prize is active **only when all three are set and `GIFT_CARD_YEAR` matches the season's year** —
