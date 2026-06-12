@@ -2,6 +2,7 @@ services:
 
   halloween-api-prod:
     container_name: "HalloweenEventApi_prod"
+    image: ghcr.io/cgoulart35/halloweenevent-api:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: ./Dockerfile.api
@@ -15,6 +16,7 @@ services:
       - 5007:5004
   halloween-webapp-prod:
     container_name: "HalloweenEventWebApp_prod"
+    image: ghcr.io/cgoulart35/halloweenevent-webapp:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: ./Dockerfile.app

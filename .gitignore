@@ -5,7 +5,11 @@ src/app/__pycache__/
 src/common/__pycache__/
 
 serviceAccountKey.json
-# Local env files (real values live in the GitProjectUpdateHandler Shared dir,
-# copied in at deploy time). Commit only the *.env.example templates.
+# Local env files: on the Pi the real values live persistently in this repo dir
+# (gitignored, never committed) and survive deploys — git reset --hard / git pull
+# don't touch ignored files. Commit only the *.env.example templates.
 api.env
 app.env
+
+# Deploy-watcher logs
+Logs/

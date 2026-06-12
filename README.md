@@ -175,7 +175,14 @@ There is no cutoff env var — the season window is hardcoded in `eventstate.py`
 
 ## Deployment
 
-Deployed on a Raspberry Pi via `~/Code/GitProjectUpdateHandler` (a webhook service that, on push,
-`git reset --hard` + `git pull`s this repo, copies the real secrets into place, and rebuilds the two
-prod containers). `api.env` / `app.env` / `serviceAccountKey.json` are gitignored; only the
-`*.env.example` templates are tracked.
+CI/CD is **self-contained** (no external deploy service). On push to `master`, GitHub Actions
+(`.github/workflows/ci.yml`) builds native **arm64** images and pushes them to **GHCR**
+(`ghcr.io/cgoulart35/halloweenevent-{api,webapp}`). On the Pi, `scripts/deploy-watcher.sh` (started at
+boot from `/etc/rc.local`) polls GHCR and, when a new image is published, runs `scripts/deploy.sh` —
+`git reset --hard origin/master` then `docker compose -f docker-compose-prod.yml pull && up -d`. The
+trigger is the **published image, not the commit**, so a deploy never races the build.
+
+`api.env` / `app.env` / `serviceAccountKey.json` are gitignored and live **persistently in the repo
+dir on the Pi** — injected at runtime (`env_file:` + a volume mount), never baked into the image, and
+untouched by `git reset --hard`. Only the `*.env.example` templates are tracked. Roll back with
+`IMAGE_TAG=<short-sha> docker compose -f docker-compose-prod.yml up -d`.
