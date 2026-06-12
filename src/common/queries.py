@@ -12,7 +12,7 @@ from email.mime.image import MIMEImage
 
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
-from src.common.eventstate import EVENT_ROOT, getCurrentSeasonWindow
+from src.common.eventstate import EVENT_ROOT, FORMAT, getCurrentSeasonWindow
 from src.common.exceptions import NoParticipantFound, EmailInUse, NotAllowedToFightSelf, NotAllowedToFightAgain
 from src.common.security import escapeHtml
 #endregion
@@ -133,6 +133,14 @@ def addParticipant(name, email, hashedPassword):
         # create a themed welcome email (matches the season-start / results emails) with
         # the rules and the player's QR code embedded inline
         scoreboardUrl = webAppHost + "/scoreboard/"
+
+        # signups only happen while a season is open, so the close time's year IS the
+        # season year (seasons never span New Year's); mid-season signups never got the
+        # season-start blast, so the prize is announced here too
+        giftCard = getActiveGiftCard(datetime.strptime(shutdownTime, FORMAT).year)
+        prizeClause = ""
+        if giftCard:
+            prizeClause = f" -- and claims this season's prize: {escapeHtml(giftCard[0])}"
         content = (
             f'<p style="margin:0 0 14px 0;">Hello {escapeHtml(name)},</p>'
             f'<p style="margin:0 0 18px 0;font-size:18px;color:#5f2f87;"><strong>Welcome to The Long Night!</strong></p>'
@@ -142,7 +150,7 @@ def addParticipant(name, email, hashedPassword):
             f'<ol style="margin:0;padding-left:22px;">'
             f'<li>Scan another player\'s QR code to fight them -- each pair may fight only once.</li>'
             f'<li>The random winner of a fight gets 2 points; the loser gets 1.</li>'
-            f'<li>Whoever has the most points when The Long Night ends ({shutdownTime}) wins.</li>'
+            f'<li>Whoever has the most points when The Long Night ends ({shutdownTime}) wins{prizeClause}.</li>'
             f'<li>You will be emailed a summary of everyone you faced when the season ends.</li>'
             f'</ol></div>'
             f'<p style="margin:0 0 16px 0;">Live scoreboard: {scoreboardUrl}</p>'
@@ -209,7 +217,41 @@ def styledEmail(contentHtml):
         '</td></tr></table>'
     )
 
-def emailResults():
+def getActiveGiftCard(year):
+    # The optional yearly gift-card prize. Active only when ALL THREE properties are set
+    # AND the configured year matches the season being emailed about -- strict equality,
+    # so a stale entry from last season (or an accidentally future one) makes the prize
+    # silently dormant instead of leaking the code. Returns (label, code) or None.
+    label = (APIPropertiesManager.GIFT_CARD_LABEL or "").strip()
+    code = (APIPropertiesManager.GIFT_CARD_CODE or "").strip()
+    cardYear = (APIPropertiesManager.GIFT_CARD_YEAR or "").strip()
+    if label and code and cardYear == str(year):
+        return (label, code)
+    return None
+
+def pickGiftCardWinner(users, scoreboard, topScore):
+    # One gift card, possibly several players tied at the top score. Deterministic
+    # tiebreak chain: most fight wins, then earliest to reach the final score (the
+    # tied player whose last fight happened first), then earliest signup (Firebase
+    # push keys are chronological). Determinism matters: if a results send fails
+    # partway through, the lifecycle retries the whole batch on the next tick, and a
+    # re-pick that changed winners would email the code to two different players.
+    candidates = [key for key, user in users.items() if user["score"] == topScore]
+    if not candidates:
+        return None
+    wins = dict.fromkeys(candidates, 0)
+    lastFought = {}
+    for event in scoreboard:
+        if event["winnerKey"] in wins:
+            wins[event["winnerKey"]] += 1
+        for key in (event["winnerKey"], event["loserKey"]):
+            if key in wins:
+                time = datetime.strptime(event["time"], FORMAT)
+                if key not in lastFought or time > lastFought[key]:
+                    lastFought[key] = time
+    return min(candidates, key=lambda key: (-wins[key], lastFought.get(key, datetime.max), key))
+
+def emailResults(year):
     emailHost = APIPropertiesManager.EMAIL_HOST
     emailPort = APIPropertiesManager.EMAIL_PORT
     emailSender = APIPropertiesManager.EMAIL_SENDER
@@ -222,6 +264,9 @@ def emailResults():
         # No participants this season -> nothing to email. Return cleanly so the lifecycle
         # marks results as sent; raising here would make reconcile retry every tick for months.
         return
+
+    giftCard = getActiveGiftCard(year)
+    prizeWinnerKey = pickGiftCardWinner(users, scoreboard, topScore) if giftCard else None
 
     emailDictionary = dict()
     winningEmails = []
@@ -246,13 +291,35 @@ def emailResults():
         emailDictionary[winnerKey]["interactions"] += (f'<li>You defeated {escapeHtml(emailDictionary[loserKey]["name"])}. {escapeHtml(time)}</li>')
         emailDictionary[loserKey]["interactions"] += (f'<li>You lost to {escapeHtml(emailDictionary[winnerKey]["name"])}. {escapeHtml(time)}</li>')
     
+    # Everyone is told who claimed the prize (tied co-winners would otherwise wonder
+    # where their code is); only the claimant's own email carries the redemption code.
+    prizeAnnouncement = ""
+    if giftCard and prizeWinnerKey:
+        tieNote = ""
+        if len(winningEmails) > 1:
+            tieNote = " (Tie broken by most fight wins, then earliest to reach the top score.)"
+        prizeAnnouncement = (
+            f'<p style="margin:0 0 16px 0;">This season\'s prize -- {escapeHtml(giftCard[0])} -- goes to '
+            f'<strong>{escapeHtml(emailDictionary[prizeWinnerKey]["name"])}</strong>!{tieNote}</p>'
+        )
+
     # get email properties
     server = smtplib.SMTP_SSL(emailHost, emailPort)
     server.login(emailSender, emailPassword)
 
     # send out unique emails to all users
-    for emailValue in emailDictionary.values():
+    for userKey, emailValue in emailDictionary.items():
         emailReceivers = resolveRecipients([emailValue["email"]])
+
+        prizeHtml = prizeAnnouncement
+        if giftCard and userKey == prizeWinnerKey:
+            prizeHtml += (
+                f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
+                f'<div style="font-weight:bold;margin-bottom:6px;">Your prize</div>'
+                f'<p style="margin:0 0 6px 0;">{escapeHtml(giftCard[0])} -- redeem with this code:</p>'
+                f'<div style="font-size:22px;font-weight:bold;letter-spacing:2px;">{escapeHtml(giftCard[1])}</div>'
+                f'</div>'
+            )
 
         # Winner and loser emails share one template so they stay consistent --
         # only the outcome line differs.
@@ -266,6 +333,7 @@ def emailResults():
             f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
             f'<div style="font-weight:bold;margin-bottom:6px;">Winners with top score</div>'
             f'<ol style="margin:0;padding-left:22px;">{winningNames}</ol></div>'
+            f'{prizeHtml}'
             f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
             f'<div style="font-weight:bold;margin-bottom:6px;">Your interactions</div>'
             f'<ol style="margin:0;padding-left:22px;">{emailValue["interactions"]}</ol></div>'

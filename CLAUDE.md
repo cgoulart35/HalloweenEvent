@@ -36,6 +36,14 @@ both images, keeps `src` importable under the plain-`python3` prod launch.
 - `queries.py` — game logic, Firebase access, and **email** (welcome email with embedded QR in
   `addParticipant`; results emails in `emailResults`). `styledEmail()` wraps email bodies in the
   app's theme. `resolveRecipients()` redirects all mail to `EMAIL_OVERRIDE_RECIPIENT` when set (QA).
+  Also the optional yearly **gift-card prize**: `getActiveGiftCard(year)` is the single gate —
+  active only when `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api.env) are all set
+  **and** the year exactly matches the season being emailed about, otherwise the prize is fully
+  dormant (so a stale entry can't leak into a later season). When active, the label is announced
+  in the welcome + season-start emails and the code goes to **exactly one** winner's results
+  email; `pickGiftCardWinner` breaks top-score ties deterministically (most fight wins → earliest
+  to reach final score → earliest signup via chronological push keys), deliberately stateless so
+  the lifecycle's retry-the-whole-batch failure mode can never award the code twice.
 - `eventstate.py` — the seasonal calendar: `EVENT_ROOT` (DB node, env-overridable for sandboxing),
   `eventIsOpen(openTime, closeTime, now)` (the single source of truth for whether the game is
   currently playable — a **two-sided** window check), `getCurrentSeasonWindow()` (reads
@@ -183,7 +191,10 @@ Env vars are loaded in `src/{api,app}/properties.py`. **Required** (`getEnvPrope
 `VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`,
 `EMAIL_SENDER`, `EMAIL_PASSWORD`; `app.env`: `VERSION`, `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`.
 `API_KEY` is the shared web↔API secret and **must be identical in both files**. Also recognized
-(optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT` (api); `WEBAPP_PORT`,
+(optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT`,
+`GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api; the yearly prize — set all three each
+season **in the real `api.env` on the Pi** and redeploy; incomplete or wrong-year config means the
+prize is never mentioned or sent — see the `queries.py` bullet); `WEBAPP_PORT`,
 `LOG_LEVEL`, `TZ`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (app). `SECRET_KEY` (app) is read via
 `os.getenv` — if unset, a random per-boot key is generated (sessions reset on restart), so set it for
 stable sessions; the old `"super secret key"` default is gone. Turnstile is **disabled when
