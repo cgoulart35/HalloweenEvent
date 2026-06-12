@@ -180,7 +180,8 @@ CI/CD is **self-contained** (no external deploy service). On push to `master`, G
 (`ghcr.io/cgoulart35/halloweenevent-{api,webapp}`). On the Pi, `scripts/deploy-watcher.sh` (started at
 boot from `/etc/rc.local`) polls GHCR and, when a new image is published, runs `scripts/deploy.sh` —
 `git reset --hard origin/master` then `docker compose -f docker-compose-prod.yml pull && up -d`. The
-trigger is the **published image, not the commit**, so a deploy never races the build.
+trigger is the **published image, not the commit**, so a deploy never races the build. Doc-only pushes
+(`**.md` / `.claude/`) are skipped by a `changes` gate, so they don't build or deploy.
 
 `api.env` / `app.env` / `serviceAccountKey.json` are gitignored and live **persistently in the repo
 dir on the Pi** — injected at runtime (`env_file:` + a volume mount), never baked into the image, and

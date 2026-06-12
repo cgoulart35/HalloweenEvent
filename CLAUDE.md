@@ -157,6 +157,8 @@ anymore (GPUH now deploys only GBot).
 - **Build (CI):** on push to `master`, the `publish` job in `.github/workflows/ci.yml` builds native
   **arm64** images and pushes them to **GHCR** — `ghcr.io/cgoulart35/halloweenevent-{api,webapp}`
   (`:latest` + `:<short-sha>`). Packages are **public**, so the Pi pulls anonymously (no `docker login`).
+  A `changes` job gates `publish`: pushes touching only docs (`**.md` / `.claude/`) still run
+  `test`+`audit` but skip the build, so docs/skills changes don't publish or redeploy.
 - **Deploy (Pi):** `scripts/deploy-watcher.sh`, started at boot from `/etc/rc.local` via
   `scripts/start.sh`, polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
   digest appears — runs `scripts/deploy.sh`: `git fetch` + `git checkout -f master` +
