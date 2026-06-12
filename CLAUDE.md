@@ -127,10 +127,14 @@ container blocks until a debugger attaches — not for casual running.
 
 **Tests** — pytest is **not** baked into the images (only `requirements.txt` is installed;
 `requirements-dev.txt` has pytest + pip-audit). Run in an ephemeral container against the **webapp**
-image, which is the only one that installs `libgl1` (required by `cv2`):
+image, which is the only one that installs `libgl1` (required by `cv2`). The `IMAGE_TAG=test` prefix
+is **required on this host**: building under the compose-default `:latest` name changes the local
+image ID, which the deploy-watcher reads as a newly published image — it responds with `deploy.sh`
+(hard `git checkout -f master` + `git reset --hard`, wiping uncommitted work) within one poll
+interval. A `:test`-tagged build is invisible to the watcher (its detector only compares `:latest`):
 ```
-docker compose -f docker-compose-prod.yml build halloween-webapp-prod
-docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+IMAGE_TAG=test docker compose -f docker-compose-prod.yml build halloween-webapp-prod
+IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
   halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
 ```
 Single test: append `tests/test_queries.py::test_perform_fight_happy_path` (or `-k <name>`) to pytest.
