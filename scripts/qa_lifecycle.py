@@ -10,6 +10,10 @@ Typical flow (run from the repo root with the API env loaded):
     set -a; . api.env; set +a            # real FIREBASE_CONFIG_JSON + email creds
     export EVENT_ROOT=qa-halloween-event           # isolates DB writes
     export EMAIL_OVERRIDE_RECIPIENT=you@example.com # all mail goes only here
+    # optional, to QA the gift-card prize (YEAR must equal the sandbox season's year):
+    #   export GIFT_CARD_LABEL='QA $5 gift card'; export GIFT_CARD_CODE=QA-TESTCODE
+    #   export GIFT_CARD_YEAR=2026
+    # 'open'/'status' print whether the prize is ACTIVE or dormant.
 
     # ... in another shell, run the real app against the same sandbox env:
     #     EVENT_ROOT=qa-halloween-event EMAIL_OVERRIDE_RECIPIENT=you@example.com \
@@ -53,6 +57,15 @@ def _bootstrap():
     print(f"email override: {APIPropertiesManager.EMAIL_OVERRIDE_RECIPIENT or '(NONE -- real recipients!)'}\n")
 
 
+def _prizeState(year):
+    # One line describing whether the gift-card prize is armed for this season, so QA can
+    # confirm the GIFT_CARD_* env vars took effect. Never prints the code itself.
+    card = queries.getActiveGiftCard(year)
+    if card:
+        return f"ACTIVE -- {card[0]} (code set) for {year}"
+    return "dormant (GIFT_CARD_* unset, incomplete, or year mismatch)"
+
+
 def _setWindowMeta(year, minutes):
     now = datetime.now()
     openTime = now.strftime(FORMAT)
@@ -84,6 +97,7 @@ def cmd_open(args):
     FirebaseService.set([EVENT_ROOT], {"meta": {"year": year}})
     openTime, closeTime = _setWindowMeta(year, args.minutes)
     print(f"season {year} OPEN: {openTime} -> {closeTime} ({args.minutes} min)")
+    print(f"gift-card prize: {_prizeState(year)}")
     print("the real app (pointed at this sandbox) is now open -- sign up & fight in the browser")
 
 
@@ -112,6 +126,7 @@ def cmd_status(args):
     print(f"meta         : {meta}")
     if meta:
         print(f"OPEN?        : {eventIsOpen(meta['openTime'], meta['closeTime'])}")
+        print(f"prize        : {_prizeState(meta['year'])}")
     nodes = sorted(k for k in FirebaseService.listRootKeys()
                    if k == EVENT_ROOT or k.startswith(EVENT_ROOT + "-"))
     print(f"sandbox nodes: {nodes}")

@@ -106,7 +106,8 @@ hand-running docker/compose:
 - **`/test [-k … | path | audit]`** — run pytest (or `pip-audit`) the ephemeral-container way.
 - **`/qa [open|tick|close|restart|status|wipe] [--minutes N]`** — drive the isolated QA sandbox
   lifecycle; isolates via `EVENT_ROOT=qa-halloween-event` passed with `docker compose run -e …`, so it
-  never touches real data and (in its core path) never edits `api.env`/`app.env`.
+  never touches real data and (in its core path) never edits `api.env`/`app.env`. Local builds use
+  `IMAGE_TAG=qa` (watcher-safe); pass `GIFT_CARD_*` to QA the prize ON, omit/blank to QA it OFF.
 - **`/preflight`** — pre-flight checks, then hand the trigger (merge to `master`) to the user, then
   post-deploy verify; it **never** pushes, merges, or deploys on its own (deploy = merge → CI builds
   & pushes the image → the in-repo watcher pulls it; see Deployment).
@@ -155,8 +156,13 @@ to drive the season window on the real clock. Commands: `open --minutes N` (open
 season now, seeds past players for the blast), `tick` (run reconcile once → fire due emails
 immediately), `close` (force the window closed now so `tick` sends results), `restart --minutes N`
 (archive + open a fresh season), `status`, `wipe`. The script refuses to run unless `EVENT_ROOT` is
-overridden away from the prod node. Then sign up / fight / watch close+results in the browser. The
-deterministic logic is covered separately by `test_lifecycle.py`. **One-time:** the sandbox node
+overridden away from the prod node. Then sign up / fight / watch close+results in the browser. To QA
+the **gift-card prize**, pass `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (fake code,
+`YEAR` = the sandbox season's `currentEventYear()`) to test it ON, omit/blank them to test it OFF;
+`open`/`status` print whether the prize is `ACTIVE`/`dormant`. QA must run the **branch's** code, so
+its local image builds use **`IMAGE_TAG=qa`** (like `/test`'s `IMAGE_TAG=test`) to stay invisible to
+the deploy-watcher — commit before building. The deterministic logic is covered separately by
+`test_lifecycle.py` / `test_queries.py`. **One-time:** the sandbox node
 needs the same `.indexOn: ["email"]` rule on `{EVENT_ROOT}/users` that prod has on
 `halloween-event/users` (add it in the Firebase console) — without it the email-lookup query behind
 signup/login returns HTTP 400.

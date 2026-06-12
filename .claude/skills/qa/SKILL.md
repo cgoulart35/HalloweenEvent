@@ -29,19 +29,27 @@ Each Bash call is independent (shell functions don't persist), so use the **full
 swapping the part after `qa_lifecycle.py`. Replace `you@example.com` with the user's real address:
 
 ```bash
-docker compose -f docker-compose-prod.yml run --rm --no-deps \
+IMAGE_TAG=qa docker compose -f docker-compose-prod.yml run --rm --no-deps \
   -e EVENT_ROOT=qa-halloween-event \
   -e EMAIL_OVERRIDE_RECIPIENT=you@example.com \
   --entrypoint sh halloween-api-prod \
   -c "python scripts/qa_lifecycle.py SUBCOMMAND"
 ```
 
-If the api image isn't built yet, build it once first (this does **not** start the prod server — the
+**`IMAGE_TAG=qa` is REQUIRED on every command here** (build *and* run). QA must exercise the
+**current checkout's code**, which means building locally — but a local build of the compose-default
+`:latest` image changes its image ID, which the deploy-watcher reads as a newly published image and
+answers with `deploy.sh` (hard `git checkout -f master && git reset --hard origin/master` + redeploy),
+**wiping uncommitted work within one poll interval**. The `:qa` tag is invisible to its detector
+(which only compares `:latest`), and `run` needs the same tag so it uses that locally-built image
+instead of trying to pull `:qa` from GHCR. **Commit the branch before building.**
+
+Build the api image once at the start of the session (this does **not** start the prod server — the
 command above overrides the entrypoint to a one-off script run, so the live API/reconcile loop never
-runs against real data):
+runs against real data). Rebuild after any code change so QA reflects it:
 
 ```bash
-docker compose -f docker-compose-prod.yml build halloween-api-prod
+IMAGE_TAG=qa docker compose -f docker-compose-prod.yml build halloween-api-prod
 ```
 
 ### Subcommands (replace `SUBCOMMAND` above)
@@ -66,6 +74,40 @@ docker compose -f docker-compose-prod.yml build halloween-api-prod
 
 Gating (open vs. `ended.html`) reflects the window instantly — no `tick` needed for that.
 
+## Gift-card prize QA (optional)
+
+The optional yearly prize (`GIFT_CARD_LABEL` / `GIFT_CARD_CODE` / `GIFT_CARD_YEAR`, all in `api.env`)
+is gated by `queries.getActiveGiftCard(year)`: active **only** when all three are set **and**
+`GIFT_CARD_YEAR` equals the sandbox season's year (`currentEventYear()` — pass the **current** year),
+else fully dormant. It has just **two states**; pick the one you need to QA (you don't have to test
+both unless you're specifically validating the prize feature). Use a **fake QA label/code, never a
+real card.** `open`/`status` print `gift-card prize: ACTIVE …` or `dormant …` so you can confirm the
+env took effect before testing.
+
+- **Prize ON** — add the trio to the `-e` flags (command pattern) *or*, for browser mode, to
+  `api.env` (see below). Expect: the **welcome** email's rules line ends "…wins — and claims this
+  season's prize: <label>."; the **season-start** email shows a prize line (label only, **no code**);
+  at close the **results** emails name the claimant to everyone, and **exactly one** winner's email
+  carries the redemption-code box. Verify only one email in your inbox contains the code.
+  ```bash
+  IMAGE_TAG=qa docker compose -f docker-compose-prod.yml run --rm --no-deps \
+    -e EVENT_ROOT=qa-halloween-event -e EMAIL_OVERRIDE_RECIPIENT=you@example.com \
+    -e GIFT_CARD_LABEL='QA $5 gift card' -e GIFT_CARD_CODE=QA-TESTCODE -e GIFT_CARD_YEAR=<season year> \
+    --entrypoint sh halloween-api-prod -c "python scripts/qa_lifecycle.py SUBCOMMAND"
+  ```
+- **Prize OFF** — pass the three keys **explicitly blank** (so a populated real `api.env` can't leak
+  the prize in), or simply omit them when the real `api.env` has them unset. Expect: no prize line in
+  welcome or season-start, and **no** code or prize wording in any results email. `status` shows
+  `dormant`.
+  ```bash
+  … -e GIFT_CARD_LABEL= -e GIFT_CARD_CODE= -e GIFT_CARD_YEAR= …
+  ```
+
+To validate **both** states in one session (e.g. when the prize is a new feature), run the full flow
+once per state and `wipe` in between. For browser mode (below), put the trio in `api.env` for the ON
+state and **remove those three lines** (then rebuild/up) for the OFF state — the teardown grep already
+covers `GIFT_CARD`.
+
 ## One-time Firebase setup
 
 The sandbox `qa-halloween-event/users` node needs the same `.indexOn: ["email"]` rule prod has on
@@ -80,15 +122,18 @@ temporarily editing the env files. This is the riskiest step — **if `EVENT_ROO
 `api.env`, prod will serve QA data.** Follow this exactly:
 
 1. Add to **`api.env`**: `EVENT_ROOT=qa-halloween-event` and `EMAIL_OVERRIDE_RECIPIENT=you@example.com`.
-   Add to **`app.env`**: `EVENT_ROOT=qa-halloween-event` (must match).
-2. `docker compose -f docker-compose-prod.yml up -d --build`
+   Add to **`app.env`**: `EVENT_ROOT=qa-halloween-event` (must match). *To QA the prize ON*, also add
+   the gift-card trio to `api.env` (`GIFT_CARD_LABEL=QA $5 gift card`, `GIFT_CARD_CODE=QA-TESTCODE`,
+   `GIFT_CARD_YEAR=<season year>`) — a fake code, never a real one; leave them out for the prize-OFF run.
+2. `IMAGE_TAG=qa docker compose -f docker-compose-prod.yml up -d --build` (the `:qa` tag keeps this
+   local build invisible to the deploy-watcher — see the command-pattern note above; **commit first**).
 3. Drive the lifecycle with the command pattern above and test in the browser on the real domain.
 4. **Tear down — do all of these:**
    - `wipe` the sandbox (command pattern above).
    - `docker compose -f docker-compose-prod.yml down`
    - **Remove** the lines you added from `api.env` and `app.env`, then **verify they're gone**:
      ```bash
-     grep -nE 'EVENT_ROOT|EMAIL_OVERRIDE_RECIPIENT' api.env app.env
+     grep -nE 'EVENT_ROOT|EMAIL_OVERRIDE_RECIPIENT|GIFT_CARD' api.env app.env
      ```
      This must print **nothing**. If it prints anything, delete those lines and check again before
      leaving — otherwise the next prod boot runs against the QA node / redirects all mail.
