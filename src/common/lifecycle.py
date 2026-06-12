@@ -16,6 +16,7 @@ from src.common.eventstate import (
     seasonOpenDatetime,
     seasonOpenString,
 )
+from src.common.security import escapeHtml
 #endregion
 
 # Self-restarting yearly season engine (API only -- single writer).
@@ -102,6 +103,16 @@ def sendSeasonStartEmail(year):
     emailPassword = APIPropertiesManager.EMAIL_PASSWORD
     webAppHost = APIPropertiesManager.WEBAPP_HOST
 
+    # what they're playing for, when a gift card is configured for this season
+    giftCard = queries.getActiveGiftCard(year)
+    prizeLine = ""
+    if giftCard:
+        prizeLine = (
+            '<p style="margin:0 0 14px 0;">This season\'s prize: <strong>'
+            + escapeHtml(giftCard[0]) +
+            '</strong> -- the top score takes it!</p>'
+        )
+
     content = (
         '<p style="margin:0 0 14px 0;">The Long Night has returned.</p>'
         '<p style="margin:0 0 18px 0;font-size:18px;color:#5f2f87;"><strong>A fresh season is '
@@ -109,6 +120,7 @@ def sendSeasonStartEmail(year):
         '<p style="margin:0 0 14px 0;">Every score is wiped clean -- sign up, get your QR code, '
         'and battle other players. Whoever has the most points when October ends wins. '
         'The season closes November 1.</p>'
+        + prizeLine +
         f'<p style="margin:0 0 14px 0;">Play here: {webAppHost}</p>'
         '<p style="margin:8px 0 0 0;">See you out there.</p>'
     )
@@ -169,7 +181,7 @@ def reconcileEventLifecycle(now=None):
     # failure retries on the next tick.)
     if now >= datetime.strptime(meta["closeTime"], FORMAT) and not meta.get("resultsEmailed"):
         try:
-            queries.emailResults()
+            queries.emailResults(year)
             _setMetaField("resultsEmailed", True)
         except Exception:
             logger.error("Error emailing results for %s", year)

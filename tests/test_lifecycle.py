@@ -9,6 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from src.api.properties import APIPropertiesManager
 from src.common import lifecycle, queries
 from src.common.eventstate import seasonOpenString, seasonCloseString
 from src.common.firebase import FirebaseService
@@ -171,11 +172,59 @@ def test_reconcile_emails_results_once_at_close(db, no_email):
         "meta": _meta(2026, startEmailed=True), "users": {"u": {"email": "a@x.com", "score": 1}}}
 
     lifecycle.reconcileEventLifecycle(datetime(2026, 11, 1, 0, 0, 1))
-    assert results.call_count == 1
+    results.assert_called_once_with(2026)  # the season year drives the gift-card check
     assert db.data["halloween-event"]["meta"]["resultsEmailed"] is True
 
     lifecycle.reconcileEventLifecycle(datetime(2026, 11, 2))  # already emailed -> no-op
     assert results.call_count == 1
+
+
+# --- sendSeasonStartEmail gift-card prize ----------------------------------
+
+@pytest.fixture
+def start_email_env(db, monkeypatch):
+    """One past player + captured SMTP so sendSeasonStartEmail's body can be inspected."""
+    db.data["halloween-event-2025"] = {"users": {"a": {"email": "past@x.com"}}}
+    monkeypatch.setattr(APIPropertiesManager, "WEBAPP_HOST", "https://example.test")
+    sent = []
+
+    class _FakeSMTP:
+        def __init__(self, host, port):
+            pass
+
+        def login(self, sender, password):
+            pass
+
+        def sendmail(self, sender, receivers, message):
+            sent.append(message)
+
+        def quit(self):
+            pass
+
+    monkeypatch.setattr(lifecycle.smtplib, "SMTP_SSL", _FakeSMTP)
+    return sent
+
+
+def _setGiftCard(monkeypatch, year):
+    monkeypatch.setattr(APIPropertiesManager, "GIFT_CARD_LABEL", "$50 gift card")
+    monkeypatch.setattr(APIPropertiesManager, "GIFT_CARD_CODE", "SPOOKY-123")
+    monkeypatch.setattr(APIPropertiesManager, "GIFT_CARD_YEAR", year)
+
+
+def test_season_start_email_announces_active_prize(start_email_env, monkeypatch):
+    _setGiftCard(monkeypatch, "2026")
+    lifecycle.sendSeasonStartEmail(2026)
+    assert len(start_email_env) == 1
+    assert "$50 gift card" in start_email_env[0]
+    assert "SPOOKY-123" not in start_email_env[0]  # the code is never announced up front
+
+
+def test_season_start_email_omits_stale_prize(start_email_env, monkeypatch):
+    _setGiftCard(monkeypatch, "2025")  # last season's card -> say nothing
+    lifecycle.sendSeasonStartEmail(2026)
+    assert len(start_email_env) == 1
+    assert "$50 gift card" not in start_email_env[0]
+    assert "prize" not in start_email_env[0].lower()
 
 
 def test_reconcile_rolls_over_at_next_october(db, no_email):

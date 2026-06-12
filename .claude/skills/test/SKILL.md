@@ -20,23 +20,28 @@ override, so they **never touch a real database or send email** — safe to run 
 
 ## Steps
 
-1. **Build the webapp image** (fast if cached — needed so the ephemeral container exists):
+1. **Build the webapp image** (fast if cached — needed so the ephemeral container exists).
+   The `IMAGE_TAG=test` prefix is **REQUIRED, on every command below**: it tags the build
+   `…-webapp:test` instead of `:latest`. The deploy-watcher on this host treats any local change
+   to the `:latest` image IDs as a newly published image and responds with `deploy.sh` — a hard
+   `git checkout -f master && git reset --hard origin/master` plus redeploy — which **wipes
+   uncommitted work within one poll interval**. The `:test` tag is invisible to its detector:
 
    ```bash
-   docker compose -f docker-compose-prod.yml build halloween-webapp-prod
+   IMAGE_TAG=test docker compose -f docker-compose-prod.yml build halloween-webapp-prod
    ```
 
 2. **Run.** Pick one based on the arguments:
 
    - **Whole suite** (no args):
      ```bash
-     docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+     IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
        halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
      ```
 
    - **Filtered / single test** (append the user's pytest args inside the quotes):
      ```bash
-     docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+     IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
        halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q -k perform_fight"
      ```
      (replace `-k perform_fight` with whatever was requested, e.g.
@@ -44,7 +49,7 @@ override, so they **never touch a real database or send email** — safe to run 
 
    - **CVE audit** (arg was `audit`):
      ```bash
-     docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+     IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
        halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && pip-audit"
      ```
 
@@ -55,6 +60,8 @@ override, so they **never touch a real database or send email** — safe to run 
 ## Notes
 
 - `--rm` cleans up the container; `--no-deps` keeps the API container from starting alongside it.
+- The `run` commands need the same `IMAGE_TAG=test` as the build so they use the just-built `:test`
+  image (it exists locally, so compose won't try to pull it from GHCR).
 - The suite deliberately covers only safely-importable code (`queries`, `eventstate`, `lifecycle`,
   `security`, the dependency set, the cv2 QR round-trip). `api.py` / `app.py` aren't imported because
   they call `app.run()` / Firebase init at import time — don't add tests that import them.

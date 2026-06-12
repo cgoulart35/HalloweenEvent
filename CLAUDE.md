@@ -36,6 +36,14 @@ both images, keeps `src` importable under the plain-`python3` prod launch.
 - `queries.py` — game logic, Firebase access, and **email** (welcome email with embedded QR in
   `addParticipant`; results emails in `emailResults`). `styledEmail()` wraps email bodies in the
   app's theme. `resolveRecipients()` redirects all mail to `EMAIL_OVERRIDE_RECIPIENT` when set (QA).
+  Also the optional yearly **gift-card prize**: `getActiveGiftCard(year)` is the single gate —
+  active only when `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api.env) are all set
+  **and** the year exactly matches the season being emailed about, otherwise the prize is fully
+  dormant (so a stale entry can't leak into a later season). When active, the label is announced
+  in the welcome + season-start emails and the code goes to **exactly one** winner's results
+  email; `pickGiftCardWinner` breaks top-score ties deterministically (most fight wins → earliest
+  to reach final score → earliest signup via chronological push keys), deliberately stateless so
+  the lifecycle's retry-the-whole-batch failure mode can never award the code twice.
 - `eventstate.py` — the seasonal calendar: `EVENT_ROOT` (DB node, env-overridable for sandboxing),
   `eventIsOpen(openTime, closeTime, now)` (the single source of truth for whether the game is
   currently playable — a **two-sided** window check), `getCurrentSeasonWindow()` (reads
@@ -98,7 +106,8 @@ hand-running docker/compose:
 - **`/test [-k … | path | audit]`** — run pytest (or `pip-audit`) the ephemeral-container way.
 - **`/qa [open|tick|close|restart|status|wipe] [--minutes N]`** — drive the isolated QA sandbox
   lifecycle; isolates via `EVENT_ROOT=qa-halloween-event` passed with `docker compose run -e …`, so it
-  never touches real data and (in its core path) never edits `api.env`/`app.env`.
+  never touches real data and (in its core path) never edits `api.env`/`app.env`. Local builds use
+  `IMAGE_TAG=qa` (watcher-safe); pass `GIFT_CARD_*` to QA the prize ON, omit/blank to QA it OFF.
 - **`/preflight`** — pre-flight checks, then hand the trigger (merge to `master`) to the user, then
   post-deploy verify; it **never** pushes, merges, or deploys on its own (deploy = merge → CI builds
   & pushes the image → the in-repo watcher pulls it; see Deployment).
@@ -119,10 +128,14 @@ container blocks until a debugger attaches — not for casual running.
 
 **Tests** — pytest is **not** baked into the images (only `requirements.txt` is installed;
 `requirements-dev.txt` has pytest + pip-audit). Run in an ephemeral container against the **webapp**
-image, which is the only one that installs `libgl1` (required by `cv2`):
+image, which is the only one that installs `libgl1` (required by `cv2`). The `IMAGE_TAG=test` prefix
+is **required on this host**: building under the compose-default `:latest` name changes the local
+image ID, which the deploy-watcher reads as a newly published image — it responds with `deploy.sh`
+(hard `git checkout -f master` + `git reset --hard`, wiping uncommitted work) within one poll
+interval. A `:test`-tagged build is invisible to the watcher (its detector only compares `:latest`):
 ```
-docker compose -f docker-compose-prod.yml build halloween-webapp-prod
-docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+IMAGE_TAG=test docker compose -f docker-compose-prod.yml build halloween-webapp-prod
+IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
   halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
 ```
 Single test: append `tests/test_queries.py::test_perform_fight_happy_path` (or `-k <name>`) to pytest.
@@ -143,8 +156,13 @@ to drive the season window on the real clock. Commands: `open --minutes N` (open
 season now, seeds past players for the blast), `tick` (run reconcile once → fire due emails
 immediately), `close` (force the window closed now so `tick` sends results), `restart --minutes N`
 (archive + open a fresh season), `status`, `wipe`. The script refuses to run unless `EVENT_ROOT` is
-overridden away from the prod node. Then sign up / fight / watch close+results in the browser. The
-deterministic logic is covered separately by `test_lifecycle.py`. **One-time:** the sandbox node
+overridden away from the prod node. Then sign up / fight / watch close+results in the browser. To QA
+the **gift-card prize**, pass `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (fake code,
+`YEAR` = the sandbox season's `currentEventYear()`) to test it ON, omit/blank them to test it OFF;
+`open`/`status` print whether the prize is `ACTIVE`/`dormant`. QA must run the **branch's** code, so
+its local image builds use **`IMAGE_TAG=qa`** (like `/test`'s `IMAGE_TAG=test`) to stay invisible to
+the deploy-watcher — commit before building. The deterministic logic is covered separately by
+`test_lifecycle.py` / `test_queries.py`. **One-time:** the sandbox node
 needs the same `.indexOn: ["email"]` rule on `{EVENT_ROOT}/users` that prod has on
 `halloween-event/users` (add it in the Firebase console) — without it the email-lookup query behind
 signup/login returns HTTP 400.
@@ -183,7 +201,10 @@ Env vars are loaded in `src/{api,app}/properties.py`. **Required** (`getEnvPrope
 `VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`,
 `EMAIL_SENDER`, `EMAIL_PASSWORD`; `app.env`: `VERSION`, `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`.
 `API_KEY` is the shared web↔API secret and **must be identical in both files**. Also recognized
-(optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT` (api); `WEBAPP_PORT`,
+(optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT`,
+`GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api; the yearly prize — set all three each
+season **in the real `api.env` on the Pi** and redeploy; incomplete or wrong-year config means the
+prize is never mentioned or sent — see the `queries.py` bullet); `WEBAPP_PORT`,
 `LOG_LEVEL`, `TZ`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` (app). `SECRET_KEY` (app) is read via
 `os.getenv` — if unset, a random per-boot key is generated (sessions reset on restart), so set it for
 stable sessions; the old `"super secret key"` default is gone. Turnstile is **disabled when

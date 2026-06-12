@@ -11,6 +11,9 @@ Raspberry Pi 4 (aarch64), Python 3.12.
 - **Scan** another player's QR code to fight them. The winner is random; scores update live.
 - A **live scoreboard** shows every fight.
 - When the season ends, everyone gets a **results email** summarizing their fights.
+- **Optional yearly prize:** if a gift card is configured for the season, its label is advertised in
+  the sign-up and season-start emails, and the redemption code is emailed to the single top-scoring
+  winner when the season ends (see [Configuration](#configuration)).
 
 ## Seasonal, self-restarting lifecycle
 
@@ -108,11 +111,14 @@ docker compose -f docker-compose-prod.yml logs --tail=20 halloween-api-prod
 ## Tests
 
 pytest isn't baked into the images; run it in an ephemeral container against the webapp image (the
-only one with `libgl1` for `cv2`):
+only one with `libgl1` for `cv2`). The `IMAGE_TAG=test` prefix is **required on the Pi**: a build
+under the default `:latest` name changes the local image ID, which the deploy-watcher reads as a newly
+published image and answers with a hard `git reset --hard` redeploy (wiping uncommitted work). A
+`:test`-tagged build is invisible to it:
 
 ```bash
-docker compose -f docker-compose-prod.yml build halloween-webapp-prod
-docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+IMAGE_TAG=test docker compose -f docker-compose-prod.yml build halloween-webapp-prod
+IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
   halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
 ```
 
@@ -126,16 +132,20 @@ temporarily runs in place of prod with the real `api.env` / `app.env` plus:
 | --- | --- | --- |
 | `EVENT_ROOT` (both apps) | `qa-halloween-event` | **required** — all reads/writes/archives use `qa-*` nodes; real `halloween-event*` data is untouched |
 | `EMAIL_OVERRIDE_RECIPIENT` (api) | your address | *optional* — routes the season-start blast to you (so you can see it), and guards against ever mailing a real address |
+| `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api) | fake label + code + the season's year | *optional* — to QA the prize; set all three (`YEAR` = the sandbox season's year) to test it ON, leave unset to test it OFF. Use a fake code, never a real card |
 
 Everything else (real `WEBAPP_HOST` domain, `API_HOST`, Firebase creds, SMTP) stays real — so the
 QR/email links are the real domain and work on your phone. Drive the season with the harness (it
 runs inside a container and refuses to run unless `EVENT_ROOT` is off the prod node):
 
+The `IMAGE_TAG=qa` prefix makes these local builds invisible to the deploy-watcher (same reason as
+the `:test` tag under [Tests](#tests)); commit your branch first.
+
 ```bash
-docker compose -f docker-compose-prod.yml up --build -d
-run() { docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
+IMAGE_TAG=qa docker compose -f docker-compose-prod.yml up --build -d
+run() { IMAGE_TAG=qa docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
           halloween-api-prod -c "python scripts/qa_lifecycle.py $*"; }
-run "open --minutes 30"      # open a sandbox season now (also seeds past players)
+run "open --minutes 30"      # open a sandbox season now (also seeds past players; prints prize state)
 run "tick"                   # fire the season-start email
 run "close" && run "tick"    # force-close + fire the results email immediately
 run "restart --minutes 30"   # archive + open a fresh season
@@ -162,7 +172,8 @@ Notes:
 Env vars are loaded in `src/{api,app}/properties.py`.
 
 - **`api.env`** (required): `VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`,
-  `EMAIL_PORT`, `EMAIL_SENDER`, `EMAIL_PASSWORD`. Optional: `API_PORT`, `LOG_LEVEL`, `TZ`.
+  `EMAIL_PORT`, `EMAIL_SENDER`, `EMAIL_PASSWORD`. Optional: `API_PORT`, `LOG_LEVEL`, `TZ`,
+  `GIFT_CARD_LABEL`, `GIFT_CARD_CODE`, `GIFT_CARD_YEAR` (the yearly prize — see below).
 - **`app.env`** (required): `VERSION`, `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`. Optional:
   `WEBAPP_PORT`, `SECRET_KEY`, `LOG_LEVEL`, `TZ`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`.
 - `API_KEY` is the shared web↔API secret and **must match in both files**. `SECRET_KEY` falls back to
@@ -172,6 +183,33 @@ Env vars are loaded in `src/{api,app}/properties.py`.
   `EMAIL_OVERRIDE_RECIPIENT` (api; redirect all outgoing mail).
 
 There is no cutoff env var — the season window is hardcoded in `eventstate.py`.
+
+### The yearly gift-card prize
+
+An optional prize for the season's top scorer, driven by three `api.env` vars:
+
+| var | example | meaning |
+| --- | --- | --- |
+| `GIFT_CARD_LABEL` | `$50 Amazon gift card` | what players are playing for (shown in emails) |
+| `GIFT_CARD_CODE` | `XXXX-YYYY-ZZZZ` | the secret redemption code (emailed to the winner only) |
+| `GIFT_CARD_YEAR` | `2026` | the season year this card is for |
+
+The prize is active **only when all three are set and `GIFT_CARD_YEAR` matches the season's year** —
+otherwise it's completely dormant (nothing announced, nothing sent). That exact-year gate means a
+**stale entry can never leak into a later season**: if you forget to update it, next October the
+prize is simply silent rather than re-sending last year's code. When active, the label is advertised
+in the sign-up and season-start emails, and at close the code goes to **exactly one** winner —
+`pickGiftCardWinner` (`src/common/queries.py`) breaks a top-score tie deterministically (most fight
+wins → earliest to reach the final score → earliest sign-up).
+
+**Updating it each year** (do this before Oct 1 so the season-start blast advertises it):
+
+1. On the Pi, edit `~/Code/HalloweenEvent/api.env` (gitignored, survives deploys — never committed).
+2. Set `GIFT_CARD_LABEL`, `GIFT_CARD_CODE`, and `GIFT_CARD_YEAR` to **this October's** year.
+3. Redeploy to pick up the new env: `sh scripts/deploy.sh`.
+
+No code change, no git, no CI — just the env file on the Pi. To **disable** the prize for a season,
+leave any of the three blank.
 
 ## Deployment
 

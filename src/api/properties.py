@@ -28,6 +28,12 @@ class APIPropertiesManager:
     EMAIL_PASSWORD = None
     EMAIL_OVERRIDE_RECIPIENT = None  # QA only: redirect ALL mail here when set
 
+    # PRIZE PROPERTIES (optional yearly gift-card reward; the prize is dormant unless
+    # ALL THREE are set and GIFT_CARD_YEAR matches the season -- see queries.getActiveGiftCard)
+    GIFT_CARD_LABEL = None
+    GIFT_CARD_CODE = None
+    GIFT_CARD_YEAR = None
+
     def startPropertyManager():
         # initialize properties
         APIPropertiesManager.VERSION =                  APIPropertiesManager.getEnvProperty("VERSION")                 # required
@@ -45,6 +51,10 @@ class APIPropertiesManager:
         APIPropertiesManager.EMAIL_SENDER =             APIPropertiesManager.getEnvProperty("EMAIL_SENDER")            # required
         APIPropertiesManager.EMAIL_PASSWORD =           APIPropertiesManager.getEnvProperty("EMAIL_PASSWORD")          # required
         APIPropertiesManager.EMAIL_OVERRIDE_RECIPIENT = APIPropertiesManager.getEnvProperty("EMAIL_OVERRIDE_RECIPIENT", "")  # QA only, default empty
+
+        APIPropertiesManager.GIFT_CARD_LABEL =          APIPropertiesManager.getEnvProperty("GIFT_CARD_LABEL", "")     # optional: what the prize is, e.g. "$50 Amazon gift card"
+        APIPropertiesManager.GIFT_CARD_CODE =           APIPropertiesManager.getEnvProperty("GIFT_CARD_CODE", "")      # optional: the secret redemption code
+        APIPropertiesManager.GIFT_CARD_YEAR =           APIPropertiesManager.getEnvProperty("GIFT_CARD_YEAR", "")      # optional: season year the prize is for
 
     def getEnvProperty(property, default = None):
         value = os.getenv(property)
