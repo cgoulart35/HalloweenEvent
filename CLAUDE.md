@@ -99,8 +99,9 @@ hand-running docker/compose:
 - **`/qa [open|tick|close|restart|status|wipe] [--minutes N]`** — drive the isolated QA sandbox
   lifecycle; isolates via `EVENT_ROOT=qa-halloween-event` passed with `docker compose run -e …`, so it
   never touches real data and (in its core path) never edits `api.env`/`app.env`.
-- **`/preflight`** — pre-flight checks, then hand the trigger to the user, then post-deploy verify; it
-  **never** pushes, merges, or deploys on its own (deploys are webhook-driven — see Deployment).
+- **`/preflight`** — pre-flight checks, then hand the trigger (merge to `master`) to the user, then
+  post-deploy verify; it **never** pushes, merges, or deploys on its own (deploy = merge → CI builds
+  & pushes the image → the in-repo watcher pulls it; see Deployment).
 
 ## Common commands
 
@@ -150,20 +151,31 @@ signup/login returns HTTP 400.
 
 ## Deployment & secrets (important)
 
-- Deploy script: `~/Code/GitProjectUpdateHandler/Scripts/UpdateHalloweenEvent.sh` — copies secrets
-  from `~/Code/GitProjectUpdateHandler/Shared/HalloweenEvent/{serviceAccountKey.json,api.env,app.env}`
-  into the repo, then `docker compose -f docker-compose-prod.yml down && up -d --build`.
-- Triggered by the `GitProjectUpdateHandler` webhook service, which runs `git reset --hard` +
-  `git pull` (discarding all local working-tree edits) **then** runs the script (which re-copies
-  secrets). Leaving local `master` behind `origin/master` is what makes it detect and deploy.
-- **`api.env` / `app.env` are gitignored; only `api.env.example` / `app.env.example` are tracked.**
-  Real values live **only** in the Shared dir above and are copied in at deploy time (after the
-  `git reset`); `serviceAccountKey.json` is gitignored too. To change a deployed secret, edit the
-  **Shared dir** files — editing the local repo copies alone won't survive the deploy's `git reset`.
-- **Never commit real env values.** Stage files explicitly by name; never `git add -A` / `git add -u`.
-  Before claiming a secret is leaked, verify with `git show HEAD:<file>` and `git log --all -S '<value>'`
-  rather than trusting working-tree contents. (The Shared dir is its own git repo, `GitProjectUpdateHandler`,
-  whose tracked env files are **blank-secret**; the real values sit in its working tree uncommitted.)
+HalloweenEvent has its **own self-contained CD** — it does **not** use GitProjectUpdateHandler (GPUH)
+anymore (GPUH now deploys only GBot).
+
+- **Build (CI):** on push to `master`, the `publish` job in `.github/workflows/ci.yml` builds native
+  **arm64** images and pushes them to **GHCR** — `ghcr.io/cgoulart35/halloweenevent-{api,webapp}`
+  (`:latest` + `:<short-sha>`). Packages are **public**, so the Pi pulls anonymously (no `docker login`).
+- **Deploy (Pi):** `scripts/deploy-watcher.sh`, started at boot from `/etc/rc.local` via
+  `scripts/start.sh`, polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
+  digest appears — runs `scripts/deploy.sh`: `git fetch` + `git checkout -f master` +
+  `git reset --hard origin/master`, then `docker compose -f docker-compose-prod.yml pull && up -d`
+  (+ `docker image prune -f`). The trigger is the **published image, not the commit**, so it can't
+  deploy before CI has built. `docker-compose-prod.yml` carries both `image:` (pull) and `build:`
+  (local fallback). Roll back with `IMAGE_TAG=<sha> docker compose -f docker-compose-prod.yml up -d`.
+- **Secrets live persistently in the repo dir on the Pi.** The real `api.env`, `app.env`, and
+  `serviceAccountKey.json` sit in `~/Code/HalloweenEvent/` (all **gitignored**), injected at runtime
+  (`env_file:` + the `serviceAccountKey.json` volume mount) and **never** baked into the image
+  (`.dockerignore` excludes them). They **survive every deploy** — `git reset --hard` / `git pull`
+  don't touch gitignored files. To change a deployed secret, edit the file in the repo dir on the Pi
+  and redeploy (`sh scripts/deploy.sh`). Adding a **new** env var means updating the tracked
+  `*.env.example` templates here **and** the real env file in the repo dir on the Pi (no second repo
+  involved anymore).
+- **Never commit real env values.** Only the `*.env.example` templates are tracked. Stage files
+  explicitly by name; never `git add -A` / `git add -u`. Before claiming a secret is leaked, verify
+  with `git show HEAD:<file>` and `git log --all -S '<value>'` rather than trusting working-tree
+  contents.
 
 Env vars are loaded in `src/{api,app}/properties.py`. **Required** (`getEnvProperty`) — `api.env`:
 `VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`,

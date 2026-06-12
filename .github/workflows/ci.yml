@@ -38,3 +38,47 @@ jobs:
         run: pip install pip-audit==2.10.0
       - name: Audit runtime dependencies (advisory)
         run: pip-audit -r requirements.txt
+
+  publish:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm        # free native arm64 for public repos (no QEMU)
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: vars
+        run: echo "sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.api
+          target: prod
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/cgoulart35/halloweenevent-api:latest
+            ghcr.io/cgoulart35/halloweenevent-api:${{ steps.vars.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build & push web app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.app
+          target: prod
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/cgoulart35/halloweenevent-webapp:latest
+            ghcr.io/cgoulart35/halloweenevent-webapp:${{ steps.vars.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

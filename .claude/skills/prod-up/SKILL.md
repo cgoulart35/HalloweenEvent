@@ -15,8 +15,9 @@ Builds and starts both prod containers with `docker-compose-prod.yml`:
 > season boundary. To exercise the app **without** touching real data or mailing real people, use
 > **`/qa`** instead.
 >
-> Normal deploys happen automatically via the GitProjectUpdateHandler webhook (see `/preflight`). Run
-> this skill for a deliberate manual (re)start of the stack on this host.
+> Normal deploys happen automatically: CI publishes a new image to GHCR and the in-repo
+> `scripts/deploy-watcher.sh` pulls it (see `/preflight`). Run this skill for a deliberate manual
+> (re)start of the stack on this host.
 
 ## Steps
 
@@ -27,14 +28,20 @@ Builds and starts both prod containers with `docker-compose-prod.yml`:
    ls -1 api.env app.env serviceAccountKey.json
    ```
 
-   If any is missing, stop and tell the user — on the Pi these are copied in from the
-   GitProjectUpdateHandler Shared dir at deploy time; do not fabricate them.
+   If any is missing, stop and tell the user — on the Pi these live persistently in the repo dir
+   (gitignored); do not fabricate them.
 
-2. **Build and start** (recreates both containers; `-d` = detached):
+2. **Pull the published images and start** (recreates both containers; `-d` = detached):
 
    ```bash
-   docker compose -f docker-compose-prod.yml up -d --build
+   docker compose -f docker-compose-prod.yml pull
+   docker compose -f docker-compose-prod.yml up -d
    ```
+
+   This runs the current **GHCR** images (`ghcr.io/cgoulart35/halloweenevent-{api,webapp}:latest`) —
+   the same artifacts CI publishes and the watcher auto-deploys. For a full sync to `origin/master`
+   (code + images, like the auto-deploy), run `sh scripts/deploy.sh`. To rebuild locally from source
+   (dev/debugging only — the watcher replaces it on the next published image), use `up -d --build`.
 
 3. **Verify both are up:**
 
@@ -55,9 +62,9 @@ Builds and starts both prod containers with `docker-compose-prod.yml`:
 
 ## Notes
 
-- **Quick restart without rebuilding** (e.g. after nothing but a container hiccup):
-  `docker compose -f docker-compose-prod.yml restart`. Use the full `up -d --build` above whenever
-  code changed.
+- **Quick restart without re-pulling** (e.g. after nothing but a container hiccup):
+  `docker compose -f docker-compose-prod.yml restart`. Use the `pull` + `up -d` above to move to a
+  newer published image.
 - Local URLs once up: API `http://localhost:5007`, web app `https://localhost:5009` (self-signed
   cert — browser warning is expected).
 - `restart: unless-stopped` is set, so the containers come back on reboot/crash on their own.
