@@ -7,6 +7,26 @@ on:
     branches: [master]
 
 jobs:
+  changes:                       # flag doc-only pushes so we can skip publish for them
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        name: Did anything outside docs change?
+        run: |
+          base="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" != "push" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$base" "${{ github.sha }}" | grep -qvE '(\.md$|^\.claude/)'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -40,8 +60,8 @@ jobs:
         run: pip-audit -r requirements.txt
 
   publish:
-    needs: test
-    if: github.event_name == 'push'
+    needs: [test, changes]
+    if: github.event_name == 'push' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04-arm        # free native arm64 for public repos (no QEMU)
     permissions:
       contents: read

@@ -7,8 +7,10 @@ COMPOSE="docker compose -f docker-compose-prod.yml"
 INTERVAL="${DEPLOY_POLL_INTERVAL:-120}"
 
 log() { echo "$(date '+%F %T') deploy-watcher: $*"; }
-# Local image IDs for every image referenced by the prod compose file (single source of truth).
-ids() { for i in $($COMPOSE config --images); do docker image inspect -f '{{.Id}}' "$i" 2>/dev/null; done; }
+# Sorted local image IDs for every image in the prod compose file. The `| sort` is REQUIRED:
+# `docker compose config --images` returns images in non-deterministic order, so without sorting,
+# `before` and `after` would differ on ordering alone and trigger an endless redeploy loop.
+ids() { for i in $($COMPOSE config --images); do docker image inspect -f '{{.Id}}' "$i" 2>/dev/null; done | sort; }
 
 log "started (interval=${INTERVAL}s)"
 while true; do
