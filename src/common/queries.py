@@ -313,11 +313,25 @@ def emailResults(year):
 
         prizeHtml = prizeAnnouncement
         if giftCard and userKey == prizeWinnerKey:
+            code = giftCard[1]
+            # A redemption URL becomes a tappable link; a short code keeps the big
+            # letter-spaced box (letter-spacing would mangle a long URL, and a link is
+            # far easier to redeem on a phone). Only http(s) is linkified -- anything
+            # else (incl. a stray javascript: scheme) falls back to plain code text.
+            if code.startswith("http://") or code.startswith("https://"):
+                redeemLine = "redeem here:"
+                codeHtml = (
+                    f'<div style="font-size:18px;font-weight:bold;word-break:break-all;">'
+                    f'<a href="{escapeHtml(code)}" style="color:#ffff00;">{escapeHtml(code)}</a></div>'
+                )
+            else:
+                redeemLine = "redeem with this code:"
+                codeHtml = f'<div style="font-size:22px;font-weight:bold;letter-spacing:2px;">{escapeHtml(code)}</div>'
             prizeHtml += (
                 f'<div style="background-color:#000000;color:#ffff00;border:6px solid #c900cd;padding:12px 16px;margin:0 0 16px 0;">'
                 f'<div style="font-weight:bold;margin-bottom:6px;">Your prize</div>'
-                f'<p style="margin:0 0 6px 0;">{escapeHtml(giftCard[0])} -- redeem with this code:</p>'
-                f'<div style="font-size:22px;font-weight:bold;letter-spacing:2px;">{escapeHtml(giftCard[1])}</div>'
+                f'<p style="margin:0 0 6px 0;">{escapeHtml(giftCard[0])} -- {redeemLine}</p>'
+                f'{codeHtml}'
                 f'</div>'
             )
 
