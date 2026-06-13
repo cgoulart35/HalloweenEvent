@@ -179,10 +179,11 @@ anymore (GPUH now deploys only GBot).
   `.github/`) still run `test`+`audit` but skip the build, so docs/skills/CI-config changes don't
   publish or redeploy.
 - **PR review (CI):** `.github/workflows/claude-review.yml` runs Claude (`anthropics/claude-code-action@v1`)
-  on every PR, posting inline findings; authed by the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (a Claude
+  on every non-draft PR (drafts get reviewed once marked ready), posting inline findings; authed by the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (a Claude
   **Pro** subscription, not API billing). Comments only — never approves or blocks. Editing this
-  workflow makes a PR fail its own review (the action requires the workflow to match `master`), so
-  merge workflow changes first.
+  workflow makes a PR fail its own review — the action's **backend** rejects a PR whose workflow
+  differs from `master`'s (`401 Workflow validation failed`, not a GitHub-side rule) — so merge
+  workflow changes on their own first.
 - **Deploy (Pi):** `scripts/deploy-watcher.sh`, started at boot from `/etc/rc.local` via
   `scripts/start.sh`, polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
   digest appears — runs `scripts/deploy.sh`: `git fetch` + `git checkout -f master` +
