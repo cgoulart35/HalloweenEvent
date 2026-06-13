@@ -15,4 +15,6 @@ def award_winner_points(current_points):
 
 def percent_complete(done, total):
     """Percentage of scheduled fights completed so far."""
+    if total == 0:
+        return 0.0
     return done / total * 100
