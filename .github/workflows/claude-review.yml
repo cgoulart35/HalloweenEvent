@@ -23,12 +23,16 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write   # REQUIRED: the action mints its GitHub token via OIDC, even with OAuth-token auth
+  actions: read
 
 jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4   # REQUIRED: the action needs a .git checkout to read code and restore trusted config from origin/master
+        with:
+          fetch-depth: 0
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
