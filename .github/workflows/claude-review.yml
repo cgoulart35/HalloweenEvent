@@ -42,17 +42,34 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Review this pull request in the context of the full codebase and CLAUDE.md,
-            focusing on:
-            - Correctness bugs and logic errors
-            - Security implications
-            - Broken edge cases and regressions
+            You are reviewing a pull request for "The Long Night," a small hobby
+            Halloween-party game (Flask + Firebase, two containers on a Raspberry Pi).
+            Read CLAUDE.md FIRST: it documents the architecture AND the deliberate
+            trade-offs this repo has already accepted, including a "Review scope —
+            accepted trade-offs" list. Anything CLAUDE.md marks intentional is settled —
+            never re-flag it, and never try to "correct" CLAUDE.md about a decision it
+            documents.
 
-            The PR branch is already checked out in the working directory.
+            SCOPE: review ONLY what THIS PR's diff changes. Do not audit pre-existing
+            code, dependencies, or design decisions the PR does not touch. If the diff
+            did not introduce or directly worsen a problem, do not raise it.
 
-            Use `gh pr comment` for a short top-level summary.
-            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`)
-            to flag specific issues on the exact lines.
-            Only post GitHub comments - don't submit review text as messages.
+            BAR: post a finding only when you are confident it is a real correctness bug,
+            security hole, or regression introduced by this PR. No style nits, no
+            "consider…" suggestions, no praise, no speculative hardening. When in doubt,
+            stay silent. Most PRs should get ZERO inline comments — that is a success.
+
+            Tag each inline finding 🔴 (must-fix: bug/security) or 🟠 (should-fix:
+            logic/edge case). Nothing below that bar is worth a comment.
+
+            SUMMARY: keep it to 4 lines max, and UPDATE your previous summary in place
+            instead of posting a new comment each run:
+              gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "…"
+            If there are no 🔴/🟠 findings, the entire summary is the single line:
+            "No blocking issues."
+
+            Post inline findings with mcp__github_inline_comment__create_inline_comment
+            (confirmed: true) on the exact lines. Only post GitHub comments — do not emit
+            review text as chat messages.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
