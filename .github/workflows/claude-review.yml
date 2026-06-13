@@ -6,9 +6,10 @@ name: Claude Code Review
 #   (generate locally with `claude setup-token`). No API billing.
 # Prereq: install the Claude GitHub App on this repo -> https://github.com/apps/claude
 #
-# Reuses the same /code-review engine you run locally, so it honors CLAUDE.md
-# (deploy-watcher rules, IMAGE_TAG gotcha, secrets handling, etc.). It comments
-# only; it never approves or blocks the PR.
+# Posting depends on BOTH the prompt instructing `gh pr comment` /
+# `mcp__github_inline_comment__create_inline_comment` AND those tools being in
+# claude_args --allowedTools. Without that it reviews silently and posts nothing.
+# Honors CLAUDE.md. Comments only; never approves or blocks the PR.
 on:
   pull_request:
     types: [opened, synchronize]
@@ -23,19 +24,33 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write   # REQUIRED: the action mints its GitHub token via OIDC, even with OAuth-token auth
-  actions: read
 
 jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4   # REQUIRED: the action needs a .git checkout to read code and restore trusted config from origin/master
+      - uses: actions/checkout@v6   # the action needs a .git checkout; v6 runs on Node 24
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
-          plugins: "code-review@claude-code-plugins"
-          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request in the context of the full codebase and CLAUDE.md,
+            focusing on:
+            - Correctness bugs and logic errors
+            - Security implications
+            - Broken edge cases and regressions
+
+            The PR branch is already checked out in the working directory.
+
+            Use `gh pr comment` for a short top-level summary.
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`)
+            to flag specific issues on the exact lines.
+            Only post GitHub comments - don't submit review text as messages.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
