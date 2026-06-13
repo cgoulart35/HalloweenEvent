@@ -184,6 +184,16 @@ anymore (GPUH now deploys only GBot).
   workflow makes a PR fail its own review — the action's **backend** rejects a PR whose workflow
   differs from `master`'s (`401 Workflow validation failed`, not a GitHub-side rule) — so merge
   workflow changes on their own first.
+- **Review scope — accepted trade-offs (the auto-reviewer must NOT re-flag these):** the
+  Flask/werkzeug built-in server in prod (behind the Cloudflare tunnel), in-memory
+  server-side sessions, the self-signed web cert, camelCase Python function names, mutable
+  GitHub Action version tags (`@vN` rather than SHA-pinned — so upstream fixes are picked up
+  automatically), and the `401 Workflow validation failed` self-review failure on
+  workflow-editing PRs (real and by
+  design — see above). These are settled; a review that raises them is noise, not a finding.
+  **Append a line here whenever a future review flags something we decide to accept** — this
+  list is how the reviewer "learns" what to ignore (the prompt in `claude-review.yml` points
+  at it).
 - **Deploy (Pi):** `scripts/deploy-watcher.sh`, started at boot from `/etc/rc.local` via
   `scripts/start.sh`, polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
   digest appears — runs `scripts/deploy.sh`: `git fetch` + `git checkout -f master` +
