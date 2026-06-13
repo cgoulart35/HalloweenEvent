@@ -1,0 +1,36 @@
+name: Claude Code Review
+
+# Automated PR review by Claude, posted as inline comments on the diff.
+#
+# Auth: your Claude Pro subscription, via the CLAUDE_CODE_OAUTH_TOKEN repo secret
+#   (generate locally with `claude setup-token`). No API billing.
+# Prereq: install the Claude GitHub App on this repo -> https://github.com/apps/claude
+#
+# Reuses the same /code-review engine you run locally, so it honors CLAUDE.md
+# (deploy-watcher rules, IMAGE_TAG gotcha, secrets handling, etc.). It comments
+# only; it never approves or blocks the PR.
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+# One review per PR at a time; a fresh push cancels an in-flight review (saves usage).
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
