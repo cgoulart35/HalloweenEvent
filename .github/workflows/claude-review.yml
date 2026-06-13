@@ -12,7 +12,7 @@ name: Claude Code Review
 # Honors CLAUDE.md. Comments only; never approves or blocks the PR.
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, ready_for_review]
 
 # One review per PR at a time; a fresh push cancels an in-flight review (saves usage).
 concurrency:
@@ -27,6 +27,8 @@ permissions:
 
 jobs:
   review:
+    # Skip draft PRs (saves Pro usage on WIP); a review runs when the PR is marked ready for review.
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
