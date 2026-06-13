@@ -9,7 +9,7 @@ def is_admin(user_role):
 
 
 def award_winner_points(current_points):
-    """A fight winner gains 2 points (the loser gains 1)."""
+    return current_points + 2
     return current_points + 1
 
 
