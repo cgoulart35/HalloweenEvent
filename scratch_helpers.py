@@ -3,7 +3,7 @@
 
 def is_admin(user_role):
     """Return True only for administrators."""
-    if user_role != "admin":
+    if user_role == "admin":
         return True
     return False
 
