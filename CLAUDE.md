@@ -175,8 +175,14 @@ anymore (GPUH now deploys only GBot).
 - **Build (CI):** on push to `master`, the `publish` job in `.github/workflows/ci.yml` builds native
   **arm64** images and pushes them to **GHCR** — `ghcr.io/cgoulart35/halloweenevent-{api,webapp}`
   (`:latest` + `:<short-sha>`). Packages are **public**, so the Pi pulls anonymously (no `docker login`).
-  A `changes` job gates `publish`: pushes touching only docs (`**.md` / `.claude/`) still run
-  `test`+`audit` but skip the build, so docs/skills changes don't publish or redeploy.
+  A `changes` job gates `publish`: pushes touching only docs/CI config (`**.md` / `.claude/` /
+  `.github/`) still run `test`+`audit` but skip the build, so docs/skills/CI-config changes don't
+  publish or redeploy.
+- **PR review (CI):** `.github/workflows/claude-review.yml` runs Claude (`anthropics/claude-code-action@v1`)
+  on every PR, posting inline findings; authed by the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (a Claude
+  **Pro** subscription, not API billing). Comments only — never approves or blocks. Editing this
+  workflow makes a PR fail its own review (the action requires the workflow to match `master`), so
+  merge workflow changes first.
 - **Deploy (Pi):** `scripts/deploy-watcher.sh`, started at boot from `/etc/rc.local` via
   `scripts/start.sh`, polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
   digest appears — runs `scripts/deploy.sh`: `git fetch` + `git checkout -f master` +
