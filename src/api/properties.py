@@ -36,7 +36,7 @@ class APIPropertiesManager:
 
     def startPropertyManager():
         # initialize properties
-        APIPropertiesManager.VERSION =                  APIPropertiesManager.getEnvProperty("VERSION")                 # required
+        APIPropertiesManager.VERSION =                  APIPropertiesManager.getEnvProperty("VERSION", "dev")          # build-stamped into the image (ENV); "dev" fallback for local/rollback
         APIPropertiesManager.TZ =                       APIPropertiesManager.getEnvProperty("TZ", "America/New_York")  # not required, usable when not given
         APIPropertiesManager.LOG_LEVEL =                APIPropertiesManager.getEnvProperty("LOG_LEVEL", "INFO")       # not required, usable when not given
         APIPropertiesManager.API_PORT =                 APIPropertiesManager.getEnvProperty("API_PORT", "5004")        # not required, usable when not given

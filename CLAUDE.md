@@ -218,9 +218,13 @@ anymore (GPUH now deploys only GBot).
   contents.
 
 Env vars are loaded in `src/{api,app}/properties.py`. **Required** (`getEnvProperty`) — `api.env`:
-`VERSION`, `WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`,
-`EMAIL_SENDER`, `EMAIL_PASSWORD`; `app.env`: `VERSION`, `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`.
-`API_KEY` is the shared web↔API secret and **must be identical in both files**. Also recognized
+`WEBAPP_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`, `EMAIL_HOST`, `EMAIL_PORT`,
+`EMAIL_SENDER`, `EMAIL_PASSWORD`; `app.env`: `API_HOST`, `API_KEY`, `FIREBASE_CONFIG_JSON`.
+`API_KEY` is the shared web↔API secret and **must be identical in both files**. `VERSION` is **no longer
+an env var**: it's **build-stamped** into both images (CI passes the short SHA as the `APP_VERSION`
+build-arg → `ENV VERSION`; defaults to `"dev"` for local/QA builds) and shown in the web UI
+(slide-out-menu build tag) to confirm which build is live — so leave it out of the env files (a value
+there would override the baked SHA; `getEnvProperty` now defaults it to `"dev"`). Also recognized
 (optional/defaulted): `API_PORT`, `LOG_LEVEL`, `TZ`, `EMAIL_OVERRIDE_RECIPIENT`,
 `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api; the yearly prize — set all three each
 season **in the real `api.env` on the Pi** and redeploy; incomplete or wrong-year config means the

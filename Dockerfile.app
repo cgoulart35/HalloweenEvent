@@ -19,6 +19,11 @@ RUN rm server.pass.key
 RUN openssl req -new -key server.key -out server.csr -subj "/C=US/CN=HalloweenEventWebApp"
 RUN openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
 
+# Build-stamped version: short SHA in CI (via build-arg), "dev" for local/QA builds.
+# Kept last in the shared stage so a new SHA doesn't bust the pip/cert layer cache.
+ARG APP_VERSION=dev
+ENV VERSION=$APP_VERSION
+
 ##########################
 # develop
 ##########################

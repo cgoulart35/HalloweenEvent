@@ -9,6 +9,11 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+# Build-stamped version: short SHA in CI (via build-arg), "dev" for local/QA builds.
+# Kept last in the shared stage so a new SHA doesn't bust the pip layer cache.
+ARG APP_VERSION=dev
+ENV VERSION=$APP_VERSION
+
 ##########################
 # develop
 ##########################

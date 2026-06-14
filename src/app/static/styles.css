@@ -1,42 +1,79 @@
+/* ============================================================================
+   The Long Night — theme
+   Dark base with the four signature colors kept as glowing accents:
+   pumpkin, witch-purple, toxic-green, magenta. Loaded AFTER w3pro.css +
+   w3-theme-orange.css, so these rules (with !important where the theme uses it)
+   win. Mobile-first; a single .content-wrap caps line length on big screens.
+   ============================================================================ */
+
 @font-face {
     font-family: GOT;
     src: url(GOT.ttf);
 }
+
+:root{
+    /* identity (unchanged hues) */
+    --pumpkin:  #ffb94f;
+    --purple:   #5f2f87;
+    --toxic:    #09ff00;
+    --magenta:  #c900cd;
+    /* dark surfaces + text */
+    --bg:        #140a1f;   /* page base */
+    --bg-elev:   #1d1430;   /* cards */
+    --surface:   #2a1b3d;   /* inputs */
+    --sidebar:   #1b1030;
+    --text:      #f3e9d6;   /* warm off-white */
+    --text-muted:#b9a8c9;
+    --ink:       #0c0712;   /* text on light accent chips */
+    /* shared treatments */
+    --radius: 14px;
+    --border-accent: 1px solid rgba(201, 0, 205, 0.45);
+    --glow-magenta: 0 0 18px rgba(201, 0, 205, 0.30);
+    --glow-pumpkin: 0 0 18px rgba(255, 185, 79, 0.35);
+    --glow-toxic:   0 0 16px rgba(9, 255, 0, 0.35);
+    --shadow-card:  0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
 html{
-    height: 100%
+    height: 100%;
 }
 body{
-    max-width:100vw;
-    min-height:100vh;
-    background-color: #ffb94f;
+    max-width: 100vw;
+    min-height: 100vh;
+    margin: 0;
+    color: var(--text);
+    font-family: "Segoe UI", Arial, sans-serif;
+    /* purple glow behind the header fading into the dark base */
+    background:
+        radial-gradient(1100px 560px at 50% -12%, rgba(95, 47, 135, 0.55), transparent 60%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+/* ----- header / footer bars (override the orange w3-theme) ----- */
+.w3-theme{
+    background-color: var(--purple) !important;
+    color: var(--text) !important;
 }
 .header{
     text-align: center;
+    border-bottom: 2px solid rgba(201, 0, 205, 0.55);
+    box-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
 }
 .header-text-top{
     font-family: GOT;
     font-size: x-large;
     word-spacing: 5px;
+    margin: 2px 0 0 0;
+    color: var(--pumpkin);
+    text-shadow: 0 0 14px rgba(255, 185, 79, 0.45);
 }
 .header-text-bottom{
     font-family: GOT;
     font-size: small;
     word-spacing: 4px;
-}
-.nav-button-text{
-    font-family: GOT;
-    font-size: large;
-    word-spacing: 5px;
-}
-.w3-circle{
-    width: 75%;    
-}
-.w3-sidebar{
-    background-color: #5f2f87;
-    color: white;
-}
-.w3-theme-d2{
-    background-color: #5f2f87 !important;
+    margin: 0 0 2px 0;
+    color: var(--text-muted);
 }
 .hamburger-button{
     position: relative;
@@ -47,67 +84,170 @@ body{
     left: 50%;
     transform: translateX(-50%) translateX(-70px);
 }
+
+/* ----- side menu ----- */
+.w3-sidebar{
+    background-color: var(--sidebar);
+    color: var(--text);
+}
+.w3-theme-d2{
+    background-color: #2a1647 !important;
+}
+.w3-circle{
+    width: 75%;
+}
+.nav-button-text{
+    font-family: GOT;
+    font-size: large;
+    word-spacing: 5px;
+}
 .w3-button{
     border: 4px solid rgba(0, 0, 0, 0) !important;
 }
-.w3-button:hover{
-    background-color: rgba(9, 255, 0, 1) !important;
-    border: 4px solid rgba(201, 0, 205, 1) !important;
+/* keep the toxic-green hover identity, but only on real hover devices so it
+   doesn't stick after a tap on phones */
+@media (hover: hover) and (pointer: fine){
+    .w3-button:hover{
+        background-color: var(--toxic) !important;
+        color: var(--ink) !important;
+        border: 4px solid var(--magenta) !important;
+    }
 }
-.participate{
-    background-color: rgba(9, 255, 0, 1);
-    border: 6px solid rgba(201, 0, 205, 1);
+.w3-button:active{
+    background-color: var(--toxic) !important;
+    color: var(--ink) !important;
 }
-.login{
-    background-color: rgba(9, 255, 0, 1);
-    border: 6px solid rgba(201, 0, 205, 1);
+
+/* ----- centered content column (the key responsive fix) ----- */
+.content-wrap{
+    max-width: 680px;
+    width: 92%;
+    margin: 0 auto;
+    padding: 18px 0 0;
 }
-.profile{
-    background-color: rgba(9, 255, 0, 1);
-    border: 6px solid rgba(201, 0, 205, 1);
-}
+
+/* ----- headings ----- */
 .welcome{
     text-align: center;
+    color: var(--pumpkin);
+    text-shadow: 0 0 12px rgba(255, 185, 79, 0.40);
+}
+
+/* outer per-page wrappers: drop the old bright-green fills, let cards carry it */
+.participate,
+.login,
+.profile,
+.scoreboard,
+.qrcode-placeholder,
+.you-won,
+.you-lost,
+.no-fight{
+    background: transparent;
+    border: none;
+}
+/* w3 puts an hr between sections; tone it down for the dark theme */
+hr{
+    border: none;
+    border-top: 1px solid rgba(201, 0, 205, 0.25);
+    margin: 14px 0;
+}
+
+/* ----- cards (the dark elevated panels) ----- */
+.instructions,
+.log-back-in,
+.forms,
+.w3-cell-row{
+    background-color: var(--bg-elev);
+    color: var(--text);
+    border: var(--border-accent);
+    border-radius: var(--radius);
+    box-shadow: var(--glow-magenta), var(--shadow-card);
+    margin: 14px auto;
+    width: 100%;
+    padding: 16px 18px;
+    line-height: 1.5;
 }
 .instructions{
-    border: 5px solid rgba(201, 0, 205, 1);
-    background-color: black;
-    color: yellow;
-    margin: auto;
-    width: 75%;
     text-align: left;
 }
-.log-back-in{
-    border: 5px solid rgba(201, 0, 205, 1);
-    background-color: black;
-    color: yellow;
-    margin: auto;
-    width: 75%;
-    text-align: center;
+.instructions ol{
+    margin: 0;
+    padding-left: 1.25em;
 }
+.instructions li{
+    margin: 0.4em 0;
+}
+.log-back-in,
 .forms{
-    background-color: rgba(9, 255, 0, 1);
     text-align: center;
-}
-.scoreboard{
-    background-color: rgba(9, 255, 0, 1);
-    border: 6px solid rgba(201, 0, 205, 1);
 }
 .w3-cell-row{
-    background-color: black;
-    color: yellow;
-    border: 6px solid rgba(201, 0, 205, 1);
-    margin: auto;
-    width: 75%;
     text-align: left;
 }
+.w3-cell-row h3{
+    margin: 0.2em 0;
+}
+.w3-cell-row h5{
+    margin: 0.2em 0;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+/* scoreboard / fight result: a tidy two-row WON / LOST card */
+.match-row{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0;
+}
+.match-badge{
+    flex: 0 0 auto;
+    min-width: 50px;
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+.match-row.win .match-badge{
+    background: var(--pumpkin);
+    color: var(--ink);
+}
+.match-row.loss .match-badge{
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid rgba(201, 0, 205, 0.35);
+}
+.match-name{
+    font-weight: bold;
+    word-break: break-word;
+}
+.match-row.win .match-name{
+    color: var(--pumpkin);
+}
+.match-row.loss .match-name{
+    color: var(--text);
+    font-weight: normal;
+}
+.match-time{
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* ----- top-score hero ----- */
 .w3-cell-top-score{
-    background-color: yellow;
-    color: black;
-    border: 6px solid rgba(201, 0, 205, 1);
-    margin: auto;
-    width: 75%;
-    text-align: left;
+    background: linear-gradient(135deg, var(--pumpkin), #ff8c1a);
+    color: var(--ink);
+    border: 1px solid rgba(255, 185, 79, 0.6);
+    border-radius: var(--radius);
+    box-shadow: var(--glow-pumpkin), var(--shadow-card);
+    margin: 14px auto;
+    width: 100%;
+    padding: 8px 18px;
+    text-align: center;
 }
 .w3-cell-top-score-text{
     font-family: GOT;
@@ -115,23 +255,73 @@ body{
     word-spacing: 5px;
 }
 .topScore{
-    font-family: "Segoe UI",Arial,sans-serif;
+    font-family: "Segoe UI", Arial, sans-serif;
     font-size: xx-large;
+    font-weight: bold;
 }
-.youWon{
-    margin-left: auto;
-    margin-right: auto;
+
+/* ----- forms ----- */
+.forms .input{
+    display: block;
     width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
+    margin: 8px auto;
+    padding: 12px 14px;
+    background-color: var(--surface);
+    color: var(--text);
+    border: var(--border-accent);
+    border-radius: 10px;
+    font-size: 16px; /* >=16px keeps iOS from zooming on focus */
 }
-.youDied{
-    margin-left: auto;
-    margin-right: auto;
+.forms .input::placeholder{
+    color: var(--text-muted);
+}
+.forms .input:focus{
+    outline: none;
+    border-color: var(--toxic);
+    box-shadow: 0 0 0 3px rgba(9, 255, 0, 0.22);
+}
+.forms .button{
+    display: block;
     width: 100%;
+    max-width: 320px;
+    margin: 12px auto 4px;
+    padding: 13px 18px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--ink);
+    background-color: var(--toxic);
+    border: 2px solid var(--magenta);
+    border-radius: 12px;
+    box-shadow: var(--glow-toxic);
 }
+@media (hover: hover) and (pointer: fine){
+    .forms .button:hover{
+        filter: brightness(1.08);
+    }
+}
+.forms .button:active{
+    transform: translateY(1px);
+}
+/* center Cloudflare's widget when present */
+.cf-turnstile{
+    display: inline-block;
+    margin: 8px auto;
+}
+
+/* ----- result + QR images (cap so they don't blow up on desktop) ----- */
+.youWon,
+.youDied,
 .niceTry{
+    display: block;
     margin-left: auto;
     margin-right: auto;
     width: 100%;
+    max-width: 360px;
+    height: auto;
+    border-radius: 10px;
 }
 .qrcode{
     display: block;
@@ -140,7 +330,42 @@ body{
     width: 100%;
     max-width: 400px;
     height: auto;
+    background: #fff;           /* keep QR on white for scannability */
+    padding: 10px;
+    border-radius: 10px;
 }
+
+/* ----- floating Scan action (shown only when logged in via the inline
+   logoutFeedProfileStyle the template already passes) ----- */
+.scan-fab{
+    position: fixed;
+    right: 18px;
+    bottom: 70px;
+    z-index: 9;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    cursor: pointer;
+    font-family: GOT;
+    font-size: large;
+    word-spacing: 4px;
+    color: var(--ink);
+    background-color: var(--toxic);
+    border: 3px solid var(--magenta);
+    border-radius: 999px;
+    box-shadow: 0 0 22px rgba(9, 255, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+@media (hover: hover) and (pointer: fine){
+    .scan-fab:hover{
+        filter: brightness(1.08);
+    }
+}
+.scan-fab:active{
+    transform: translateY(1px);
+}
+
+/* ----- footer ----- */
 .footer-placeholder{
     position: relative;
     height: 52px;
@@ -151,16 +376,33 @@ body{
     width: 100%;
     bottom: 0;
     height: 52px;
+    border-top: 2px solid rgba(201, 0, 205, 0.55);
+    box-shadow: 0 -2px 18px rgba(0, 0, 0, 0.55);
 }
 .footer-text{
     font-family: GOT;
     font-size: x-large;
     word-spacing: 5px;
+    margin: 6px 0;
+    color: var(--pumpkin);
+    text-shadow: 0 0 12px rgba(255, 185, 79, 0.40);
 }
-.loader {
+/* build identifier, pinned to the bottom of the slide-out menu */
+.sidebar-version{
+    margin-top: auto;       /* push to the bottom of the flex column */
+    padding: 16px;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    opacity: 0.8;
+}
+
+/* ----- loader spinner ----- */
+.loader{
     display: none;
-    border: 16px solid #5f2f87;
-    border-top: 16px solid rgba(201, 0, 205, 1);
+    border: 16px solid var(--purple);
+    border-top: 16px solid var(--magenta);
     border-radius: 50%;
     width: 100px;
     height: 100px;
@@ -171,14 +413,39 @@ body{
     right: 0;
     top: 0;
     bottom: 0;
+    z-index: 20;
 }
-@keyframes spin {
-    0% { transform: rotate(0deg); }
+@keyframes spin{
+    0%   { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-#mySidebar {
+
+#mySidebar{
+    display: none;          /* JS sets this to flex on open (column layout) */
+    flex-direction: column;
+}
+#cameraFileInput{
     display: none;
 }
-#cameraFileInput {
-    display: none;
+
+/* ----- larger screens: a touch more breathing room ----- */
+@media (min-width: 768px){
+    .content-wrap{
+        padding-top: 26px;
+    }
+    .instructions,
+    .log-back-in,
+    .forms,
+    .w3-cell-row{
+        padding: 20px 24px;
+    }
+}
+/* ----- very narrow screens: keep the header title from overflowing ----- */
+@media (max-width: 360px){
+    .header-text-top{
+        font-size: large;
+    }
+    .footer-text{
+        font-size: large;
+    }
 }

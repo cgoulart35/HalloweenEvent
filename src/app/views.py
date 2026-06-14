@@ -21,6 +21,11 @@ from src.common.security import constantTimeEquals, verifyTurnstile, escapeHtml
 
 views = Blueprint("views", __name__)
 
+@views.app_context_processor
+def injectVersion():
+    # Expose the build-stamped VERSION to every template (footer build tag).
+    return {"version": WebAppPropertiesManager.VERSION}
+
 @views.before_request
 def gateClosedAfterEvent():
     # Once The Long Night has ended, keep the app reachable but closed: serve the
@@ -144,13 +149,41 @@ def getScoreboard():
         logger.error(e)
         return None
 
+def humanizeTime(value):
+    # Reformat a "MM/DD/YY HH:MM:SS AM/PM" stamp for display: un-pad the date and hour
+    # and drop :00 seconds (e.g. "06/14/26 02:45:00 PM" -> "6/14/26 2:45 PM").
+    try:
+        parsed = datetime.strptime(value, "%m/%d/%y %I:%M:%S %p")
+    except (ValueError, TypeError):
+        return value
+    datePart = f"{parsed.month}/{parsed.day}/{parsed.strftime('%y')}"
+    hour = parsed.hour % 12 or 12
+    timePart = f"{hour}:{parsed.minute:02d}"
+    if parsed.second:
+        timePart += f":{parsed.second:02d}"
+    meridiem = "AM" if parsed.hour < 12 else "PM"
+    return f"{datePart} {timePart} {meridiem}"
+
+def matchCardHtml(winner, loser, time):
+    # One scoreboard / fight result as a tidy two-row card (WON / LOST badge + name) so
+    # long display names wrap cleanly instead of forming a ragged one-line sentence.
+    return (
+        '<div class="w3-cell-row"><div class="w3-cell w3-container">'
+        '<div class="match">'
+        f'<div class="match-row win"><span class="match-badge">WON</span><span class="match-name">{escapeHtml(winner)}</span></div>'
+        f'<div class="match-row loss"><span class="match-badge">LOST</span><span class="match-name">{escapeHtml(loser)}</span></div>'
+        '</div>'
+        f'<div class="match-time">{escapeHtml(humanizeTime(time))}</div>'
+        '</div></div>'
+    )
+
 def buildScoreboard():
     scoreboardJson = getScoreboard()
     scoreboardHTML = ""
     topScore = 0
     if scoreboardJson != None:
         for event in scoreboardJson["scoreboard"]:
-            scoreboardHTML += f'<div class="w3-cell-row"><div class="w3-cell w3-container"><h3>{escapeHtml(event["winner"])} defeated {escapeHtml(event["loser"])}.</h3><h5>Time: {escapeHtml(event["time"])}</h5></div></div><hr>'
+            scoreboardHTML += matchCardHtml(event["winner"], event["loser"], event["time"]) + '<hr>'
         topScore = scoreboardJson["topScore"]
     return scoreboardHTML, topScore
 
@@ -212,7 +245,7 @@ def fight():
         flash("Fight Complete", 'success')
         fight = fightResponse.json()
         if "winner" in fight and "loser" in fight and "time" in fight and "winnerKey" in fight and "loserKey" in fight:
-            fightHTML = f'<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><h3>{escapeHtml(fight["winner"])} defeated {escapeHtml(fight["loser"])}.</h3><h5>Time: {escapeHtml(fight["time"])}</h5></div></div><hr>'
+            fightHTML = matchCardHtml(fight["winner"], fight["loser"], fight["time"]) + '<hr>'
 
             if fight["winnerKey"] == scannerUserKey and fight["loserKey"] == scannedUserKey:
                 fightHTML += f"<div class=\"w3-cell-row\"><div class=\"w3-cell w3-container\"><img class=\"youWon\" src=\"{url_for('static', filename='youWon.png')}\"></div></div><hr>"
@@ -293,7 +326,7 @@ def participate():
                                request.form.get('cf-turnstile-response'),
                                request.remote_addr):
             flash("CAPTCHA verification failed. Please try again.", 'error')
-            return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1], csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
+            return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = humanizeTime(getCurrentSeasonWindow()[1]), csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
         email = request.form['email']
         password = request.form['password']
         name = request.form['name']
@@ -317,7 +350,7 @@ def participate():
             else:
                 flash(createUserResponse.json()["message"], 'error')
 
-    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = getCurrentSeasonWindow()[1], csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
+    return render_template("participate.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", shutdownTime = humanizeTime(getCurrentSeasonWindow()[1]), csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
 
 @views.route("/login/", methods = ["GET", "POST"])
 def login():
