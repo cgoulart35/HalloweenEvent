@@ -28,7 +28,7 @@
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{participateLoginStyle|safe}} href="{{url_for('views.participate')}}">Participate</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{participateLoginStyle|safe}} href="{{url_for('views.login')}}">Login</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.feed')}}">Feed</a>
-        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} onclick="openCamera()">Scan</a>
+        <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} onclick="openScanner()">Scan</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.qrcode')}}">QR Code</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.profile')}}">Profile</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.logout')}}">Logout</a>
@@ -46,12 +46,23 @@
         {% block content %}
         {% endblock %}
     </main>
-    <button class="scan-fab" {{logoutFeedProfileStyle|safe}} onclick="openCamera()">&#128247; Scan</button>
+    <button class="scan-fab" {{logoutFeedProfileStyle|safe}} onclick="openScanner()">&#128247; Scan</button>
+    <div class="scanner-overlay" id="scannerOverlay">
+        <video class="scanner-video" id="scannerVideo" playsinline muted autoplay></video>
+        <canvas class="scanner-canvas" id="scannerCanvas"></canvas>
+        <div class="scanner-frame"></div>
+        <p class="scanner-hint">Point at a player's QR code</p>
+        <div class="scanner-controls">
+            <button type="button" class="scanner-btn scanner-photo" onclick="openCamera()">Use photo instead</button>
+            <button type="button" class="scanner-btn scanner-close" onclick="closeScanner()">Close</button>
+        </div>
+    </div>
     <div class="footer-placeholder"></div>
     <footer class="w3-container w3-theme footer">
         <h1 class="footer-text">Happy Halloween</h1>
     </footer>
     {{ toastr.include_toastr_js() }}
 </body>
+<script type="text/javascript" src="{{url_for('static', filename='jsQR.js')}}"></script>
 <script type="text/javascript" src="{{url_for('static', filename='index.js')}}"></script>
 </html>
