@@ -16,7 +16,7 @@ Builds and starts both prod containers with `docker-compose-prod.yml`:
 > **`/qa`** instead.
 >
 > Normal deploys happen automatically: CI publishes a new image to GHCR and the in-repo
-> `scripts/deploy-watcher.sh` pulls it (see `/preflight`). Run this skill for a deliberate manual
+> `scripts/deploy-watcher.sh` pulls it (see **Deployment** in CLAUDE.md). Run this skill for a deliberate manual
 > (re)start of the stack on this host.
 
 ## Steps

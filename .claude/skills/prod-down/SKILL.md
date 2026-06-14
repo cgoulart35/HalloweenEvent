@@ -32,7 +32,7 @@ Stops and removes both prod containers (`halloween-api-prod`, `halloween-webapp-
 - `down` removes the containers and the default network but **not** images or any data — there are
   no named volumes here, and game state is in Firebase. Bring the stack back with **`/prod-up`**.
 - This does not affect the deploy watcher (`scripts/deploy-watcher.sh`); when a **new** image is
-  published it will `pull` + `up -d` and bring the stack back on its own (see `/preflight`). Because
+  published it will `pull` + `up -d` and bring the stack back on its own (see **Deployment** in CLAUDE.md). Because
   the watcher only acts on a new image, a stack left `down` stays down until then — use **`/prod-up`**
   to bring it back now.
 - If you only need to cycle the containers, prefer `docker compose -f docker-compose-prod.yml restart`
