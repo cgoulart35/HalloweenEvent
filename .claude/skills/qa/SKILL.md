@@ -42,7 +42,10 @@ IMAGE_TAG=qa docker compose -f docker-compose-prod.yml run --rm --no-deps \
 answers with `deploy.sh` (hard `git checkout -f master && git reset --hard origin/master` + redeploy),
 **wiping uncommitted work within one poll interval**. The `:qa` tag is invisible to its detector
 (which only compares `:latest`), and `run` needs the same tag so it uses that locally-built image
-instead of trying to pull `:qa` from GHCR. **Commit the branch before building.**
+instead of trying to pull `:qa` from GHCR. Because the build is `:qa` (not `:latest`) it reads your
+**working tree** without triggering the watcher, so **committing first isn't required** — it's an
+optional safety net that protects uncommitted work only if something *else* fires the watcher
+mid-session (a stray `:latest` build or a concurrent merge to `master`).
 
 Build the api image once at the start of the session (this does **not** start the prod server — the
 command above overrides the entrypoint to a one-off script run, so the live API/reconcile loop never
@@ -126,7 +129,8 @@ temporarily editing the env files. This is the riskiest step — **if `EVENT_ROO
    the gift-card trio to `api.env` (`GIFT_CARD_LABEL=QA $5 gift card`, `GIFT_CARD_CODE=QA-TESTCODE`,
    `GIFT_CARD_YEAR=<season year>`) — a fake code, never a real one; leave them out for the prize-OFF run.
 2. `IMAGE_TAG=qa docker compose -f docker-compose-prod.yml up -d --build` (the `:qa` tag keeps this
-   local build invisible to the deploy-watcher — see the command-pattern note above; **commit first**).
+   local build invisible to the deploy-watcher — see the command-pattern note above; committing
+   first is an optional safety net, not required).
 3. Drive the lifecycle with the command pattern above and test in the browser on the real domain.
 4. **Tear down — do all of these:**
    - `wipe` the sandbox (command pattern above).

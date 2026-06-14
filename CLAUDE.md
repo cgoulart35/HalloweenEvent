@@ -96,9 +96,9 @@ the containers can auto-restart (`restart: unless-stopped`).
 ## Skills (`/commands`)
 
 Repo skills live in `.claude/skills/<name>/SKILL.md` (tracked in git) and are invokable as `/<name>`;
-all are also auto-invokable (Claude loads one when a request matches its `description`). They wrap the
-raw commands documented below with the right flags, safety rails, and verification — prefer them over
-hand-running docker/compose:
+all are also auto-invokable (Claude loads one when a request matches its `description`). Most wrap the
+raw commands documented below with the right flags, safety rails, and verification (prefer them over
+hand-running docker/compose); **`/implement-dev-changes`** composes them into a full dev-change flow:
 
 - **`/prod-up`** — build + start the two prod containers, then verify `ps` + logs.
 - **`/prod-down`** — stop/remove the prod containers (game state is safe in Firebase, not the containers).
@@ -108,9 +108,11 @@ hand-running docker/compose:
   lifecycle; isolates via `EVENT_ROOT=qa-halloween-event` passed with `docker compose run -e …`, so it
   never touches real data and (in its core path) never edits `api.env`/`app.env`. Local builds use
   `IMAGE_TAG=qa` (watcher-safe); pass `GIFT_CARD_*` to QA the prize ON, omit/blank to QA it OFF.
-- **`/preflight`** — pre-flight checks, then hand the trigger (merge to `master`) to the user, then
-  post-deploy verify; it **never** pushes, merges, or deploys on its own (deploy = merge → CI builds
-  & pushes the image → the in-repo watcher pulls it; see Deployment).
+- **`/implement-dev-changes`** — the end-to-end dev-flow **orchestrator** (fixes, features, vuln fixes,
+  upgrades): explore → plan → branch → implement (+tests) → `/test` → optional `/qa` → commit → push →
+  open a PR → work the review loop → pre-deploy checks → **merge (only on your explicit OK)** → verify
+  the build + prod deploy. Composes the atomic skills above and pauses at every human gate; it never
+  merges/pushes/deploys unprompted.
 
 ## Common commands
 
@@ -161,7 +163,8 @@ the **gift-card prize**, pass `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR
 `YEAR` = the sandbox season's `currentEventYear()`) to test it ON, omit/blank them to test it OFF;
 `open`/`status` print whether the prize is `ACTIVE`/`dormant`. QA must run the **branch's** code, so
 its local image builds use **`IMAGE_TAG=qa`** (like `/test`'s `IMAGE_TAG=test`) to stay invisible to
-the deploy-watcher — commit before building. The deterministic logic is covered separately by
+the deploy-watcher (committing first is an optional safety net, not required — the build reads your
+working tree and `:qa` is invisible to the watcher). The deterministic logic is covered separately by
 `test_lifecycle.py` / `test_queries.py`. **One-time:** the sandbox node
 needs the same `.indexOn: ["email"]` rule on `{EVENT_ROOT}/users` that prod has on
 `halloween-event/users` (add it in the Firebase console) — without it the email-lookup query behind

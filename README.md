@@ -139,7 +139,8 @@ QR/email links are the real domain and work on your phone. Drive the season with
 runs inside a container and refuses to run unless `EVENT_ROOT` is off the prod node):
 
 The `IMAGE_TAG=qa` prefix makes these local builds invisible to the deploy-watcher (same reason as
-the `:test` tag under [Tests](#tests)); commit your branch first.
+the `:test` tag under [Tests](#tests)). The build reads your working tree, so committing your branch
+first isn't required — it's an optional safety net against an unrelated watcher trigger mid-session.
 
 ```bash
 IMAGE_TAG=qa docker compose -f docker-compose-prod.yml up --build -d
