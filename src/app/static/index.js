@@ -1,5 +1,5 @@
 function openSidebar() {
-  document.getElementById("mySidebar").style.display = "block";
+  document.getElementById("mySidebar").style.display = "flex";
 }
 
 function closeSidebar() {

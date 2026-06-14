@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="utf-8">
     <title>The Long Night</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3pro.css">
-    <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-orange.css">
+    <meta name="theme-color" content="#140a1f">
+    <link rel="manifest" href="{{url_for('static', filename='manifest.json')}}">
+    <link rel="apple-touch-icon" href="{{url_for('static', filename='logo.png')}}">
+    <link rel="stylesheet" href="{{url_for('static', filename='w3pro.css')}}">
+    <link rel="stylesheet" href="{{url_for('static', filename='w3-theme-orange.css')}}">
     <link rel="stylesheet" href="{{url_for('static', filename='styles.css')}}">
     {{ toastr.include_jquery() }}
     {{ toastr.include_toastr_css() }}
@@ -29,6 +33,7 @@
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.profile')}}">Profile</a>
         <a class="w3-bar-item w3-button nav-button-text custom-hover" {{logoutFeedProfileStyle|safe}} href="{{url_for('views.logout')}}">Logout</a>
         <input id="cameraFileInput" type="file" accept="image/*" capture="environment" scanURL="{{url_for('views.scan')}}" onclick="this.value=null;"/>
+        <div class="sidebar-version">build &middot; {{version}}</div>
     </nav>
     <header class="w3-bar w3-card w3-theme header">
         <button class="w3-bar-item w3-button w3-xlarge w3-hover-theme hamburger-button" onclick="openSidebar()">&#9776;</button>
@@ -37,8 +42,11 @@
             <h2 class="header-text-bottom">A StormerG Halloween Game</h2>
         </div>
     </header>
-    {% block content %}
-    {% endblock %}
+    <main class="content-wrap">
+        {% block content %}
+        {% endblock %}
+    </main>
+    <button class="scan-fab" {{logoutFeedProfileStyle|safe}} onclick="openCamera()">&#128247; Scan</button>
     <div class="footer-placeholder"></div>
     <footer class="w3-container w3-theme footer">
         <h1 class="footer-text">Happy Halloween</h1>

@@ -29,7 +29,7 @@ class WebAppPropertiesManager:
 
     def startPropertyManager():
         # initialize properties
-        WebAppPropertiesManager.VERSION =                  WebAppPropertiesManager.getEnvProperty("VERSION")                        # required
+        WebAppPropertiesManager.VERSION =                  WebAppPropertiesManager.getEnvProperty("VERSION", "dev")                 # build-stamped into the image (ENV); "dev" fallback for local/rollback
         WebAppPropertiesManager.TZ =                       WebAppPropertiesManager.getEnvProperty("TZ", "America/New_York")         # not required, usable when not given
         WebAppPropertiesManager.LOG_LEVEL =                WebAppPropertiesManager.getEnvProperty("LOG_LEVEL", "INFO")              # not required, usable when not given
         WebAppPropertiesManager.WEBAPP_PORT =              WebAppPropertiesManager.getEnvProperty("WEBAPP_PORT", "5004")            # not required, usable when not given

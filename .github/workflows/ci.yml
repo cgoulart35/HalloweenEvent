@@ -84,6 +84,8 @@ jobs:
           target: prod
           platforms: linux/arm64
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.vars.outputs.sha }}
           tags: |
             ghcr.io/cgoulart35/halloweenevent-api:latest
             ghcr.io/cgoulart35/halloweenevent-api:${{ steps.vars.outputs.sha }}
@@ -97,6 +99,8 @@ jobs:
           target: prod
           platforms: linux/arm64
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.vars.outputs.sha }}
           tags: |
             ghcr.io/cgoulart35/halloweenevent-webapp:latest
             ghcr.io/cgoulart35/halloweenevent-webapp:${{ steps.vars.outputs.sha }}

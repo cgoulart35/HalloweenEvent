@@ -1,0 +1,15 @@
+{
+  "name": "The Long Night",
+  "short_name": "Long Night",
+  "description": "A StormerG Halloween Game",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#140a1f",
+  "theme_color": "#140a1f",
+  "icons": [
+    { "src": "logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
