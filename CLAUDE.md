@@ -14,12 +14,15 @@ on a Raspberry Pi 4 (aarch64), Python 3.12.
 Two independent Flask apps share `src/common/`:
 
 - **API** — `src/api/api.py`, port **5007** (HTTP). Flask-RESTful resources: `Scoreboard` (GET),
-  `Fight` (POST), `Users` (POST=register / PUT=update), `Login` (POST). bcrypt for passwords. All
+  `Fight` (POST), `Users` (POST=register / PUT=update), `Login` (POST), `Reminders`
+  (POST=season-reminder opt-in/opt-out, **not** season-gated). bcrypt for passwords. All
   game/data logic is in `src/common/queries.py`.
 - **Web app** — `src/app/app.py` + `src/app/views.py`, port **5009** (HTTPS, self-signed). A Flask
   Blueprint (`views`) that renders Jinja templates and calls the API over HTTP (`API_HOST`). Sessions
   are **in-memory server-side** (`openSessions` dict in `views.py`), not signed cookies; a background
-  job expires them. QR scanning (`/scan/`) decodes uploads with `cv2.QRCodeDetector`.
+  job expires them. QR scanning (`/scan/`) decodes uploads with `cv2.QRCodeDetector`. `/remind/`
+  (off-season opt-in form on `ended.html`) and `/unsubscribe/` (two-step token-authed confirm page
+  from the season-start email) manage the reminder list — both exempt from the off-season gate.
 
 Both processes run Flask's built-in werkzeug server via `app.run(...)` — intentional for a small app
 behind a Cloudflare tunnel. **Prod** launches it directly (`python3 src/...`); only the **dev** Docker
@@ -36,6 +39,11 @@ both images, keeps `src` importable under the plain-`python3` prod launch.
 - `queries.py` — game logic, Firebase access, and **email** (welcome email with embedded QR in
   `addParticipant`; results emails in `emailResults`). `styledEmail()` wraps email bodies in the
   app's theme. `resolveRecipients()` redirects all mail to `EMAIL_OVERRIDE_RECIPIENT` when set (QA).
+  `setReminderSubscription`/`getReminderSubscriptions` manage the persistent **season-reminder
+  list** at `{EVENT_ROOT}/reminders/{hash(email)}` = `{email, status}` (opt-in / opt-out; hash-keyed
+  so repeat clicks are idempotent). Signing up (`addParticipant`) re-enlists you — it sets
+  `subscribed`, clearing any prior opt-out, so a returning player who once unsubscribed is opted
+  back in by playing again.
   Also the optional yearly **gift-card prize**: `getActiveGiftCard(year)` is the single gate —
   active only when `GIFT_CARD_LABEL`/`GIFT_CARD_CODE`/`GIFT_CARD_YEAR` (api.env) are all set
   **and** the year exactly matches the season being emailed about, otherwise the prize is fully
@@ -51,12 +59,16 @@ both images, keeps `src` importable under the plain-`python3` prod launch.
   (`season{Open,Close}Datetime`, `season{Open,Close}String`, `currentEventYear`). The Oct 1 → Nov 1
   rule (`SEASON_OPEN`/`SEASON_CLOSE`) is what fills `meta` in prod.
 - `lifecycle.py` — **API-only** self-restarting season engine: `ensureProvisioned`, the interval
-  `reconcileEventLifecycle` heartbeat, `rolloverEvent` (archive + reset), `sendSeasonStartEmail`,
-  `getAllPastParticipantEmails`.
+  `reconcileEventLifecycle` heartbeat, `rolloverEvent` (archive + reset; **carries the reminders list
+  forward** across the reset), `sendSeasonStartEmail` (one themed email per recipient, each with a
+  per-recipient unsubscribe footer), `getSeasonStartRecipients` (= past players ∪ opt-ins − opt-outs;
+  with no reminder records this is exactly `getAllPastParticipantEmails`), `getAllPastParticipantEmails`.
 - `security.py` — shared, dependency-free helpers: `constantTimeEquals` (API-key compare),
   `verifyTurnstile` (Cloudflare siteverify; returns `True`/bypasses when the secret is blank, for
-  local/QA), `escapeHtml` (markupsafe wrapper for the XSS fix). Safely importable (no Flask/Firebase
-  init at import), so it's unit-tested in `tests/test_security.py`.
+  local/QA), `escapeHtml` (markupsafe wrapper for the XSS fix), `makeUnsubscribeToken` /
+  `verifyUnsubscribeToken` (stateless HMAC-`API_KEY` token over the normalized email, so the API can
+  mint an unsubscribe link the web app verifies without storing per-user tokens). Safely importable
+  (no Flask/Firebase init at import), so it's unit-tested in `tests/test_security.py`.
 
 ### Auth & hardening (web↔API and the web forms)
 
@@ -65,9 +77,12 @@ The API requires a shared secret on every request: header `X-API-Key` matched (c
 `/favicon.ico` and `OPTIONS` are exempt. CORS is restricted to `WEBAPP_HOST`. The web app adds
 Cloudflare **Turnstile** on signup/login (verified server-side; **disabled when `TURNSTILE_SECRET_KEY`
 is blank**), per-session **CSRF** tokens on its POST forms (`/scan/` and the QR `GET /fight/` are
-exempt — `SameSite=Lax` covers the latter), `Secure`/`HttpOnly`/`SameSite=Lax` session cookies, and
+exempt — `SameSite=Lax` covers the latter; `/remind/` carries CSRF + Turnstile like signup), `Secure`/`HttpOnly`/`SameSite=Lax` session cookies, and
 `escapeHtml()` on user-supplied names everywhere they're built into HTML or email. `PUT /users/`
-requires the current password (bcrypt-verified) before any credential change.
+requires the current password (bcrypt-verified) before any credential change. The unsubscribe flow is
+**two-step** so an email-client link prefetch can't opt anyone out: `GET /unsubscribe/` only renders a
+confirm page; the opt-out happens on `POST /unsubscribe/` (CSRF + the HMAC token re-verified).
+`Reminders.post` is **not** season-gated and only reachable via the `X-API-Key` gate (web app only).
 
 ### Event lifecycle (read before touching season/scheduler/gating code)
 
@@ -79,14 +94,16 @@ auto-advances and survives restarts. (Storing the window as data — rather than
 lets QA drop a short window into a **sandbox** `meta` and drive the real app; see Manual QA.)
 
 - **Gating** (both apps): playable iff `eventIsOpen(*getCurrentSeasonWindow())`. Pre-season **and**
-  post-season are closed. Web app `@views.before_request` serves `ended.html`; API `Fight.post` /
-  `Users.post` return 403; `Scoreboard.get` / `Login` stay open.
+  post-season are closed. Web app `@views.before_request` serves `ended.html` (except `/remind/` and
+  `/unsubscribe/`, which must work off-season); API `Fight.post` / `Users.post` return 403;
+  `Scoreboard.get` / `Login` / `Reminders.post` stay open.
 - **Lifecycle driver**: the **API** runs `lifecycle.reconcileEventLifecycle` on a 5-min interval
   (single writer). It is idempotent/restart-safe (re-derives state from `meta` + `now`, guarded by
   the `resultsEmailed` / `startEmailed` flags — nothing depends on hitting an exact instant):
   - at **close** (Nov 1): emails final results once;
   - at the next **open** (Oct 1): archives the finished season to `{EVENT_ROOT}-{year}`, opens a
-    fresh empty season, and emails all past players (`sendSeasonStartEmail`).
+    fresh empty season, and emails the season-reminder list — past players + opt-ins − opt-outs
+    (`sendSeasonStartEmail`).
   Archiving happens **at reopen, not at close**, so the off-season `ended.html` keeps showing the
   finished season's standings.
 
@@ -103,11 +120,12 @@ hand-running docker/compose); **`/implement-dev-changes`** composes them into a 
 - **`/prod-up`** — build + start the two prod containers, then verify `ps` + logs.
 - **`/prod-down`** — stop/remove the prod containers (game state is safe in Firebase, not the containers).
 - **`/prod-logs [api|webapp] [N]`** — read-only status + tail logs (never `-f`/follow by default).
-- **`/test [-k … | path | audit]`** — run pytest (or `pip-audit`) the ephemeral-container way.
+- **`/test [-k … | path | audit]`** — run pytest (or `pip-audit`) the ephemeral-container way
+  (wraps `scripts/test.sh`, which bakes in `IMAGE_TAG=test`).
 - **`/qa [open|tick|close|restart|status|wipe] [--minutes N]`** — drive the isolated QA sandbox
-  lifecycle; isolates via `EVENT_ROOT=qa-halloween-event` passed with `docker compose run -e …`, so it
-  never touches real data and (in its core path) never edits `api.env`/`app.env`. Local builds use
-  `IMAGE_TAG=qa` (watcher-safe); pass `GIFT_CARD_*` to QA the prize ON, omit/blank to QA it OFF.
+  lifecycle via `scripts/qa.sh` (always sets `IMAGE_TAG=qa` + `EVENT_ROOT=qa-halloween-event`), so it
+  never touches real data and (in its core path) never edits `api.env`/`app.env`. `:qa` is
+  watcher-safe; set `QA_EMAIL` to route mail to you, and `GIFT_CARD_*` to QA the prize ON (omit for OFF).
 - **`/implement-dev-changes`** — the end-to-end dev-flow **orchestrator** (fixes, features, vuln fixes,
   upgrades): explore → plan → branch → implement (+tests) → `/test` → optional `/qa` → commit → push →
   open a PR → work the review loop → pre-deploy checks → **merge (only on your explicit OK)** → verify
@@ -140,7 +158,9 @@ IMAGE_TAG=test docker compose -f docker-compose-prod.yml build halloween-webapp-
 IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
   halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
 ```
-Single test: append `tests/test_queries.py::test_perform_fight_happy_path` (or `-k <name>`) to pytest.
+`scripts/test.sh` wraps both commands (`bash scripts/test.sh`, `bash scripts/test.sh audit`, or any
+pytest args). Single test: append `tests/test_queries.py::test_perform_fight_happy_path` (or
+`-k <name>`) to pytest, e.g. `bash scripts/test.sh tests/test_queries.py::test_perform_fight_happy_path`.
 `tests/` deliberately exercises only safely-importable code (`queries`, `eventstate`, `lifecycle`, `security`,
 the dep set, the cv2 QR round-trip); `api.py`/`app.py` aren't imported because they run `app.run()` /
 Firebase init at import time. `test_lifecycle.py` drives provision/rollover/reconcile with a tiny
@@ -153,8 +173,10 @@ QR/email links are the real domain and work on a phone) and isolates itself pure
 **data node**. The domain serves prod *or* QA at a time, so QA runs in place of prod with the real
 `api.env`/`app.env` plus `EVENT_ROOT=qa-halloween-event` (**required** — all reads/writes/archives
 hit `qa-*` nodes; real data untouched) and, optionally, `EMAIL_OVERRIDE_RECIPIENT=<you>` (routes the
-season-start blast to you and guards against mailing a real address). Use `scripts/qa_lifecycle.py`
-to drive the season window on the real clock. Commands: `open --minutes N` (open a fresh sandbox
+season-start blast to you and guards against mailing a real address). Use `scripts/qa.sh <subcommand>`
+— a deterministic wrapper around `scripts/qa_lifecycle.py` that always sets `IMAGE_TAG=qa` +
+`EVENT_ROOT=qa-halloween-event`, reads `QA_EMAIL`/`GIFT_CARD_*` from the env, and auto-builds the
+`:qa` image — to drive the season window on the real clock. Commands: `open --minutes N` (open a fresh sandbox
 season now, seeds past players for the blast), `tick` (run reconcile once → fire due emails
 immediately), `close` (force the window closed now so `tick` sends results), `restart --minutes N`
 (archive + open a fresh season), `status`, `wipe`. The script refuses to run unless `EVENT_ROOT` is

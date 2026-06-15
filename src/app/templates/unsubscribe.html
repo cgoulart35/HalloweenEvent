@@ -1,0 +1,15 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="forms">
+    <h3 class="welcome">Unsubscribe from season reminders?</h3>
+    <p class="remind-blurb">This stops only the once-a-year "a new season has begun" reminder for
+    <strong>{{email}}</strong>. You'll still get your game emails &mdash; your QR code when you sign
+    up, and your results when a season ends. (If you ever sign up to play again, we'll add you back.)</p>
+    <form action="{{url_for('views.unsubscribe')}}" method="post">
+        <input type="hidden" name="email" value="{{email}}">
+        <input type="hidden" name="token" value="{{token}}">
+        <input type="hidden" name="csrfToken" value="{{csrfToken}}">
+        <p><input class="button" type="submit" value="Unsubscribe"></p>
+    </form>
+</div>
+{% endblock %}

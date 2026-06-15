@@ -16,7 +16,7 @@ from flask import Blueprint, session, request, render_template, redirect, url_fo
 from src.app.properties import WebAppPropertiesManager
 from src.common.firebase import FirebaseService
 from src.common.eventstate import eventIsOpen, getCurrentSeasonWindow
-from src.common.security import constantTimeEquals, verifyTurnstile, escapeHtml
+from src.common.security import constantTimeEquals, verifyTurnstile, escapeHtml, verifyUnsubscribeToken
 #endregion
 
 views = Blueprint("views", __name__)
@@ -32,12 +32,20 @@ def gateClosedAfterEvent():
     # "ended" page (with final standings) for every route instead of the game.
     # Static assets/favicon are served outside this blueprint, so the page still
     # renders with styling.
+    #
+    # The reminder routes are the exception: the "remind me" form lives ON the ended page,
+    # and unsubscribe links are clicked between seasons, so both must run off-season. Let
+    # them through to their own handlers.
+    if request.endpoint in ("views.remind", "views.unsubscribe"):
+        return
     if not eventIsOpen(*getCurrentSeasonWindow()):
         scoreboardHTML, topScore = buildScoreboard()
         return render_template("ended.html",
                                participateLoginStyle='style="display: none;"',
                                logoutFeedProfileStyle='style="display: none;"',
-                               scoreboard=scoreboardHTML, topScore=topScore)
+                               scoreboard=scoreboardHTML, topScore=topScore,
+                               csrfToken=getCsrfToken(),
+                               turnstileSiteKey=WebAppPropertiesManager.TURNSTILE_SITE_KEY)
 
 class CustomFormatter(logging.Formatter):
     def format(self, record):
@@ -387,3 +395,62 @@ def login():
                 flash(loginResponse.json()["message"], 'error')
 
     return render_template("login.html", participateLoginStyle = "", logoutFeedProfileStyle = "style=\"display: none;\"", csrfToken = getCsrfToken(), turnstileSiteKey = WebAppPropertiesManager.TURNSTILE_SITE_KEY)
+
+@views.route("/remind/", methods = ["POST"])
+def remind():
+    # Off-season opt-in from the ended page: "remind me when the next season opens". CSRF +
+    # Turnstile match the signup form; the write goes through the API like every mutation.
+    if not csrfTokenValid():
+        abort(400)
+    if not verifyTurnstile(WebAppPropertiesManager.TURNSTILE_SECRET_KEY,
+                           request.form.get('cf-turnstile-response'),
+                           request.remote_addr):
+        flash("CAPTCHA verification failed. Please try again.", 'error')
+        return redirect(url_for("views.root"))
+    email = request.form.get('email', '')
+
+    remindResponse = None
+    try:
+        remindResponse = requests.post(WebAppPropertiesManager.API_HOST + "/reminders/", headers=_apiHeaders(), data = json.dumps({"email": email, "action": "subscribe"}))
+        if remindResponse.status_code >= 400:
+            raise Exception
+        flash("You're on the list -- we'll email you when the next season opens.", 'success')
+    except Exception:
+        if remindResponse is None:
+            flash("Could not reach the game server. Please try again.", 'error')
+        else:
+            flash("Could not sign you up. Please try again.", 'error')
+    return redirect(url_for("views.root"))
+
+@views.route("/unsubscribe/", methods = ["GET", "POST"])
+def unsubscribe():
+    # Two-step so an email client that PREFETCHES the link (a GET) can't opt anyone out:
+    # GET only renders a confirmation page; the opt-out happens on the POST when the user
+    # clicks the button. The HMAC token authenticates the address (keyed on the shared
+    # API_KEY) on both steps, so a link can't unsubscribe anyone else.
+    email = request.values.get('email', '')
+    token = request.values.get('token', '')
+    if not email or not verifyUnsubscribeToken(WebAppPropertiesManager.API_KEY, email, token):
+        flash("That unsubscribe link is invalid.", 'error')
+        return redirect(url_for("views.root"))
+
+    if request.method == "GET":
+        return render_template("unsubscribe.html",
+                               participateLoginStyle = "style=\"display: none;\"",
+                               logoutFeedProfileStyle = "style=\"display: none;\"",
+                               email = email, token = token, csrfToken = getCsrfToken())
+
+    if not csrfTokenValid():
+        abort(400)
+    unsubscribeResponse = None
+    try:
+        unsubscribeResponse = requests.post(WebAppPropertiesManager.API_HOST + "/reminders/", headers=_apiHeaders(), data = json.dumps({"email": email, "action": "unsubscribe"}))
+        if unsubscribeResponse.status_code >= 400:
+            raise Exception
+        flash("You've been unsubscribed from season-opening reminders. You'll still get your game and results emails.", 'success')
+    except Exception:
+        if unsubscribeResponse is None:
+            flash("Could not reach the game server. Please try again.", 'error')
+        else:
+            flash("Could not process that right now. Please try again.", 'error')
+    return redirect(url_for("views.root"))

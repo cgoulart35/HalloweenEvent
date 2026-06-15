@@ -25,35 +25,33 @@ on a short, fast window. It isolates itself purely by switching the **data node*
 
 ## The command pattern (run this — no stack needed, no secrets edited)
 
-Each Bash call is independent (shell functions don't persist), so use the **full command every time**,
-swapping the part after `qa_lifecycle.py`. Replace `you@example.com` with the user's real address:
+`scripts/qa.sh` wraps all of this deterministically: it always sets `IMAGE_TAG=qa` and
+`EVENT_ROOT=qa-halloween-event`, builds the api image on first use, and runs the lifecycle
+subcommand in a one-off container. Pass the subcommand as args; set the email override (and,
+optionally, the gift-card trio) via env vars. Replace `you@example.com` with the user's real address:
 
 ```bash
-IMAGE_TAG=qa docker compose -f docker-compose-prod.yml run --rm --no-deps \
-  -e EVENT_ROOT=qa-halloween-event \
-  -e EMAIL_OVERRIDE_RECIPIENT=you@example.com \
-  --entrypoint sh halloween-api-prod \
-  -c "python scripts/qa_lifecycle.py SUBCOMMAND"
+QA_EMAIL=you@example.com bash scripts/qa.sh SUBCOMMAND   # e.g. status, "open --minutes 30", tick
+bash scripts/qa.sh build                                 # rebuild after any code change
 ```
 
-**`IMAGE_TAG=qa` is REQUIRED on every command here** (build *and* run). QA must exercise the
-**current checkout's code**, which means building locally — but a local build of the compose-default
-`:latest` image changes its image ID, which the deploy-watcher reads as a newly published image and
-answers with `deploy.sh` (hard `git checkout -f master && git reset --hard origin/master` + redeploy),
-**wiping uncommitted work within one poll interval**. The `:qa` tag is invisible to its detector
-(which only compares `:latest`), and `run` needs the same tag so it uses that locally-built image
-instead of trying to pull `:qa` from GHCR. Because the build is `:qa` (not `:latest`) it reads your
-**working tree** without triggering the watcher, so **committing first isn't required** — it's an
-optional safety net that protects uncommitted work only if something *else* fires the watcher
-mid-session (a stray `:latest` build or a concurrent merge to `master`).
+`QA_EMAIL` sets `EMAIL_OVERRIDE_RECIPIENT` so any mail goes only to that address; you can omit it
+only for read-only `status`/`wipe`.
 
-Build the api image once at the start of the session (this does **not** start the prod server — the
-command above overrides the entrypoint to a one-off script run, so the live API/reconcile loop never
-runs against real data). Rebuild after any code change so QA reflects it:
+**`IMAGE_TAG=qa` is the safety rail and is baked into the script** (build *and* run). QA must exercise
+the **current checkout's code**, which means building locally — but a local build of the
+compose-default `:latest` image changes its image ID, which the deploy-watcher reads as a newly
+published image and answers with `deploy.sh` (hard `git checkout -f master && git reset --hard
+origin/master` + redeploy), **wiping uncommitted work within one poll interval**. The `:qa` tag is
+invisible to its detector (which only compares `:latest`), and the script `run`s under the same tag so
+it uses the locally-built image instead of trying to pull `:qa` from GHCR. Because the build is `:qa`
+(not `:latest`) it reads your **working tree** without triggering the watcher, so **committing first
+isn't required** — it's an optional safety net that protects uncommitted work only if something *else*
+fires the watcher mid-session (a stray `:latest` build or a concurrent merge to `master`).
 
-```bash
-IMAGE_TAG=qa docker compose -f docker-compose-prod.yml build halloween-api-prod
-```
+The script auto-builds the api image on first use and never starts the prod server (it overrides the
+entrypoint to a one-off script run, so the live API/reconcile loop never runs against real data). Run
+`bash scripts/qa.sh build` to rebuild after a code change so QA reflects it.
 
 ### Subcommands (replace `SUBCOMMAND` above)
 
@@ -93,17 +91,15 @@ env took effect before testing.
   at close the **results** emails name the claimant to everyone, and **exactly one** winner's email
   carries the redemption-code box. Verify only one email in your inbox contains the code.
   ```bash
-  IMAGE_TAG=qa docker compose -f docker-compose-prod.yml run --rm --no-deps \
-    -e EVENT_ROOT=qa-halloween-event -e EMAIL_OVERRIDE_RECIPIENT=you@example.com \
-    -e GIFT_CARD_LABEL='QA $5 gift card' -e GIFT_CARD_CODE=QA-TESTCODE -e GIFT_CARD_YEAR=<season year> \
-    --entrypoint sh halloween-api-prod -c "python scripts/qa_lifecycle.py SUBCOMMAND"
+  GIFT_CARD_LABEL='QA $5 gift card' GIFT_CARD_CODE=QA-TESTCODE GIFT_CARD_YEAR=<season year> \
+    QA_EMAIL=you@example.com bash scripts/qa.sh SUBCOMMAND
   ```
-- **Prize OFF** — pass the three keys **explicitly blank** (so a populated real `api.env` can't leak
-  the prize in), or simply omit them when the real `api.env` has them unset. Expect: no prize line in
-  welcome or season-start, and **no** code or prize wording in any results email. `status` shows
-  `dormant`.
+- **Prize OFF** — simply **omit** the three `GIFT_CARD_*` vars. The script always passes them as
+  explicit `-e` flags (blank when unset), so a populated real `api.env` can't leak the prize in
+  either. Expect: no prize line in welcome or season-start, and **no** code or prize wording in any
+  results email. `status` shows `dormant`.
   ```bash
-  … -e GIFT_CARD_LABEL= -e GIFT_CARD_CODE= -e GIFT_CARD_YEAR= …
+  QA_EMAIL=you@example.com bash scripts/qa.sh SUBCOMMAND
   ```
 
 To validate **both** states in one session (e.g. when the prize is a new feature), run the full flow

@@ -101,6 +101,42 @@ def test_collects_and_dedupes_emails_across_schemas(db):
     assert emails == ["a@x.com", "b@x.com", "live@x.com"]
 
 
+# --- getSeasonStartRecipients ---------------------------------------------
+
+def test_recipients_default_to_all_past_players(db):
+    db.data.update({
+        "halloween-event-2025": {"users": {"a": {"email": "Past@x.com"}}},
+        "halloween-event": {"users": {"b": {"email": "live@x.com"}}},
+    })
+    # no reminders node -> exactly the past-players set (backwards compatible)
+    assert sorted(e.lower() for e in lifecycle.getSeasonStartRecipients()) == \
+        sorted(e.lower() for e in lifecycle.getAllPastParticipantEmails())
+
+
+def test_recipients_add_optins_and_remove_optouts(db):
+    db.data.update({
+        "halloween-event-2025": {"users": {
+            "a": {"email": "stay@x.com"},
+            "b": {"email": "Leaving@x.com"}}},
+        "halloween-event": {"reminders": {
+            "h1": {"email": "newbie@x.com", "status": "subscribed"},     # never played -> added
+            "h2": {"email": "leaving@x.com", "status": "unsubscribed"},  # past player -> removed
+        }},
+    })
+    assert sorted(e.lower() for e in lifecycle.getSeasonStartRecipients()) == \
+        ["newbie@x.com", "stay@x.com"]
+
+
+def test_recipients_optout_removes_deduped_past_player(db):
+    db.data.update({
+        "halloween-event-2024": {"users": {"a": {"email": "dup@x.com"}}},
+        "halloween-event-2025": {"users": {"b": {"email": "DUP@x.com"}}},  # same addr, diff case
+        "halloween-event": {"reminders": {
+            "h1": {"email": "dup@x.com", "status": "unsubscribed"}}},
+    })
+    assert lifecycle.getSeasonStartRecipients() == []
+
+
 # --- rolloverEvent --------------------------------------------------------
 
 def test_rollover_archives_and_resets(db):
@@ -122,6 +158,20 @@ def test_rollover_skips_empty_node(db):
     lifecycle.rolloverEvent(2026)
     assert "halloween-event-2026" not in db.data
     assert db.data["halloween-event"]["meta"]["year"] == 2027
+
+
+def test_rollover_preserves_reminders(db):
+    reminders = {"h1": {"email": "fan@x.com", "status": "subscribed"}}
+    db.data["halloween-event"] = {
+        "meta": _meta(2026),
+        "users": {"u1": {"name": "Alice", "email": "a@x.com", "score": 5}},
+        "reminders": reminders,
+    }
+    lifecycle.rolloverEvent(2026)
+    # the season-independent reminder list survives the reset...
+    assert db.data["halloween-event"]["reminders"] == reminders
+    # ...and is never copied into the archived season
+    assert "reminders" not in db.data["halloween-event-2026"]
 
 
 def test_rollover_does_not_clobber_existing_archive(db):
@@ -225,6 +275,17 @@ def test_season_start_email_omits_stale_prize(start_email_env, monkeypatch):
     assert len(start_email_env) == 1
     assert "$50 gift card" not in start_email_env[0]
     assert "prize" not in start_email_env[0].lower()
+
+
+def test_season_start_email_includes_unsubscribe_link(start_email_env, monkeypatch):
+    from src.common.security import makeUnsubscribeToken
+    monkeypatch.setattr(APIPropertiesManager, "API_KEY", "test-key")
+    lifecycle.sendSeasonStartEmail(2026)
+    assert len(start_email_env) == 1
+    body = start_email_env[0]
+    # the one past player (past@x.com) gets a per-recipient, token-authed unsubscribe link
+    assert "/unsubscribe/?email=past%40x.com" in body
+    assert makeUnsubscribeToken("test-key", "past@x.com") in body
 
 
 def test_reconcile_rolls_over_at_next_october(db, no_email):

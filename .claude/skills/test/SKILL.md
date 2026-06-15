@@ -20,48 +20,32 @@ override, so they **never touch a real database or send email** — safe to run 
 
 ## Steps
 
-1. **Build the webapp image** (fast if cached — needed so the ephemeral container exists).
-   The `IMAGE_TAG=test` prefix is **REQUIRED, on every command below**: it tags the build
-   `…-webapp:test` instead of `:latest`. The deploy-watcher on this host treats any local change
-   to the `:latest` image IDs as a newly published image and responds with `deploy.sh` — a hard
-   `git checkout -f master && git reset --hard origin/master` plus redeploy — which **wipes
-   uncommitted work within one poll interval**. The `:test` tag is invisible to its detector:
+1. **Run the wrapper.** `scripts/test.sh` does the whole thing deterministically — builds the
+   webapp image as `:test`, then runs pytest (or pip-audit) in an ephemeral container with
+   `requirements-dev.txt` installed on the fly. Pick the form from `$ARGUMENTS`:
 
    ```bash
-   IMAGE_TAG=test docker compose -f docker-compose-prod.yml build halloween-webapp-prod
+   bash scripts/test.sh                  # whole suite
+   bash scripts/test.sh -k perform_fight # any pytest args pass straight through
+   bash scripts/test.sh tests/test_lifecycle.py::test_rollover_archives_then_reopens
+   bash scripts/test.sh audit            # pip-audit CVE scan instead of pytest
    ```
 
-2. **Run.** Pick one based on the arguments:
+   The `:test` tag is the safety rail and is **baked into the script** (not optional): the
+   deploy-watcher on this host treats any local change to the `:latest` image IDs as a newly
+   published image and responds with `deploy.sh` — a hard `git checkout -f master &&
+   git reset --hard origin/master` plus redeploy — which **wipes uncommitted work within one poll
+   interval**. The `:test` tag is invisible to its detector, so the wrapper can never trigger that.
 
-   - **Whole suite** (no args):
-     ```bash
-     IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
-       halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q"
-     ```
-
-   - **Filtered / single test** (append the user's pytest args inside the quotes):
-     ```bash
-     IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
-       halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && python -m pytest -q -k perform_fight"
-     ```
-     (replace `-k perform_fight` with whatever was requested, e.g.
-     `tests/test_lifecycle.py::test_rollover_archives_then_reopens`)
-
-   - **CVE audit** (arg was `audit`):
-     ```bash
-     IMAGE_TAG=test docker compose -f docker-compose-prod.yml run --rm --no-deps --entrypoint sh \
-       halloween-webapp-prod -c "pip install -q -r requirements-dev.txt && pip-audit"
-     ```
-
-3. **Report the outcome faithfully.** State pass/fail counts; if anything failed, quote the failing
+2. **Report the outcome faithfully.** State pass/fail counts; if anything failed, quote the failing
    test(s) and the assertion/traceback — don't claim green unless pytest exited 0. For `audit`, list
    any vulnerable packages with the advisory IDs and fixed versions.
 
 ## Notes
 
-- `--rm` cleans up the container; `--no-deps` keeps the API container from starting alongside it.
-- The `run` commands need the same `IMAGE_TAG=test` as the build so they use the just-built `:test`
-  image (it exists locally, so compose won't try to pull it from GHCR).
+- The mechanics live in `scripts/test.sh`: it `cd`s to the repo root, sets `IMAGE_TAG=test`,
+  builds, then runs with `--rm` (cleans up the container) and `--no-deps` (keeps the API container
+  from starting alongside it). Read it if you need to see exactly what runs.
 - The suite deliberately covers only safely-importable code (`queries`, `eventstate`, `lifecycle`,
   `security`, the dependency set, the cv2 QR round-trip). `api.py` / `app.py` aren't imported because
   they call `app.run()` / Firebase init at import time — don't add tests that import them.

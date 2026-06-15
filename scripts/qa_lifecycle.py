@@ -131,6 +131,8 @@ def cmd_status(args):
                    if k == EVENT_ROOT or k.startswith(EVENT_ROOT + "-"))
     print(f"sandbox nodes: {nodes}")
     print(f"past players : {lifecycle.getAllPastParticipantEmails()}")
+    print(f"reminders    : {queries.getReminderSubscriptions()}")
+    print(f"blast list   : {lifecycle.getSeasonStartRecipients()}")
 
 
 def cmd_close(args):

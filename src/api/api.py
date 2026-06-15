@@ -282,10 +282,29 @@ class Login(Resource):
                 value["password"] = None
             abort(400, errorMsg)
 
+class Reminders(Resource):
+    def post(self):
+        # Opt in to ("remind me on Oct 1") or out of (unsubscribe) the season-start email.
+        # Deliberately NOT gated by eventIsOpen: opt-in happens off-season (that's the whole
+        # point) and unsubscribe must work at any time. The shared X-API-Key gate (above)
+        # still applies, so only the web app can reach it.
+        value = request.get_data()
+        try:
+            value = json.loads(value)
+            email = value.get("email")
+            action = value.get("action")
+            if not email or type(email) != str or action not in ("subscribe", "unsubscribe"):
+                raise Exception
+            queries.setReminderSubscription(email, action == "subscribe")
+            return {"email": email, "status": action}
+        except Exception:
+            abort(400, "Invalid Request.")
+
 api.add_resource(Scoreboard, '/scoreboard/')
 api.add_resource(Fight, '/fight/')
 api.add_resource(Users, '/users/')
 api.add_resource(Login, '/login/')
+api.add_resource(Reminders, '/reminders/')
 app.add_url_rule('/favicon.ico', view_func = lambda: send_from_directory(parentDir + '/src/common', 'favicon-pumpkin.ico'))
 # HTTP only: the API runs behind the Cloudflare tunnel and is reached by the web app
 # over the LAN (API_HOST). TLS terminates at the tunnel, so no ssl_context here.
