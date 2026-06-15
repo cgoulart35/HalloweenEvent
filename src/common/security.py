@@ -1,3 +1,4 @@
+import hashlib
 import hmac
 import requests as _requests
 from markupsafe import escape as _escape
@@ -31,3 +32,21 @@ def verifyTurnstile(secret, token, remoteip=None):
 
 def escapeHtml(s):
     return str(_escape(s))
+
+
+def _normalizeEmail(email):
+    return (email or "").strip().lower()
+
+
+def makeUnsubscribeToken(secret, email):
+    # Stateless unsubscribe token: HMAC-SHA256 of the normalized email keyed on the
+    # shared API_KEY (identical in api.env/app.env). The API mints the link inside the
+    # season-start email; the web app verifies it -- no per-user token has to be stored,
+    # and you can't unsubscribe an arbitrary address without the secret. Normalizing the
+    # email means the token is case-/whitespace-insensitive, matching the reminder list.
+    return hmac.new((secret or "").encode(), _normalizeEmail(email).encode(),
+                    hashlib.sha256).hexdigest()
+
+
+def verifyUnsubscribeToken(secret, email, token):
+    return constantTimeEquals(makeUnsubscribeToken(secret, email), token or "")

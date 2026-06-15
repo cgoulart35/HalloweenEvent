@@ -8,7 +8,7 @@ monkeypatch here so the tests need no network, no env, and no live database.
 These tests pin the core game logic so a dependency bump can't silently change
 behavior.
 """
-from unittest.mock import Mock
+from unittest.mock import Mock, mock_open
 
 import pytest
 
@@ -310,3 +310,92 @@ def test_email_results_inactive_gift_card_mentions_nothing(monkeypatch, sent_mai
         assert "SPOOKY-123" not in message
         assert "$50 gift card" not in message
         assert "prize" not in message.lower()
+
+
+# --- reminder subscription list -------------------------------------------
+
+def test_set_reminder_subscription_subscribe(monkeypatch):
+    set_mock = Mock()
+    monkeypatch.setattr(FirebaseService, "set", set_mock)
+    queries.setReminderSubscription("Me@X.com", True)
+    key = queries._reminderKey("Me@X.com")
+    set_mock.assert_called_once_with(
+        ["halloween-event", "reminders", key],
+        {"email": "Me@X.com", "status": "subscribed"})
+
+
+def test_set_reminder_subscription_unsubscribe(monkeypatch):
+    set_mock = Mock()
+    monkeypatch.setattr(FirebaseService, "set", set_mock)
+    queries.setReminderSubscription("me@x.com", False)
+    key = queries._reminderKey("me@x.com")
+    set_mock.assert_called_once_with(
+        ["halloween-event", "reminders", key],
+        {"email": "me@x.com", "status": "unsubscribed"})
+
+
+def test_reminder_key_is_case_and_space_insensitive():
+    # opt-in then opt-out under different spellings must overwrite the same record
+    assert queries._reminderKey(" Me@X.com ") == queries._reminderKey("me@x.com")
+
+
+def test_set_reminder_subscription_blank_is_noop(monkeypatch):
+    set_mock = Mock()
+    monkeypatch.setattr(FirebaseService, "set", set_mock)
+    queries.setReminderSubscription("   ", True)
+    queries.setReminderSubscription(None, False)
+    set_mock.assert_not_called()
+
+
+def test_get_reminder_subscriptions(monkeypatch):
+    records = {
+        "h1": {"email": "Keep@X.com", "status": "subscribed"},
+        "h2": {"email": "gone@x.com", "status": "unsubscribed"},
+        "h3": {"email": "  ", "status": "subscribed"},   # blank -> skipped
+    }
+    monkeypatch.setattr(FirebaseService, "get", lambda children: FakeResult(records))
+    assert queries.getReminderSubscriptions() == {
+        "keep@x.com": ("Keep@X.com", "subscribed"),
+        "gone@x.com": ("gone@x.com", "unsubscribed"),
+    }
+
+
+def test_get_reminder_subscriptions_empty(monkeypatch):
+    monkeypatch.setattr(FirebaseService, "get", lambda children: FakeResult(None))
+    assert queries.getReminderSubscriptions() == {}
+
+
+def test_add_participant_resubscribes_to_reminders(monkeypatch):
+    # Signing up (re)enlists the player in the season-reminder list (clearing any opt-out):
+    # addParticipant must call setReminderSubscription(email, True) on a successful signup.
+    # addParticipant is otherwise heavy (QR file I/O + SMTP), so the surrounding bits are
+    # stubbed and we assert only the re-enlist call.
+    monkeypatch.setattr(APIPropertiesManager, "WEBAPP_HOST", "https://example.test")  # QR URL base
+    queryCalls = {"n": 0}
+    def fake_query(children, orderByChild, equalTo):
+        queryCalls["n"] += 1
+        # 1st call = "already registered?" -> no; 2nd = look up the just-pushed user
+        return [] if queryCalls["n"] == 1 else [("newKey", {"name": "Zoe", "email": equalTo})]
+    monkeypatch.setattr(FirebaseService, "query", fake_query)
+    monkeypatch.setattr(FirebaseService, "push", lambda children, obj: None)
+    monkeypatch.setattr(FirebaseService, "set", lambda children, obj: None)
+    monkeypatch.setattr(FirebaseService, "get",
+                        lambda children: FakeResult({"openTime": "10/01/26 12:00:00 AM",
+                                                     "closeTime": "11/01/26 12:00:00 AM"}))
+    monkeypatch.setattr(queries.qrcode, "make", lambda data: Mock())
+    monkeypatch.setattr(queries.os.path, "exists", lambda p: True)
+    monkeypatch.setattr("builtins.open", mock_open(read_data=b"img"))
+    monkeypatch.setattr(queries, "MIMEImage", lambda data: queries.MIMEText(""))  # skip image sniffing
+
+    class _FakeSMTP:
+        def __init__(self, host, port): pass
+        def login(self, sender, password): pass
+        def sendmail(self, sender, receivers, message): pass
+        def quit(self): pass
+    monkeypatch.setattr(queries.smtplib, "SMTP_SSL", _FakeSMTP)
+
+    resub = Mock()
+    monkeypatch.setattr(queries, "setReminderSubscription", resub)
+
+    queries.addParticipant("Zoe", "zoe@x.com", "hash")
+    resub.assert_called_once_with("zoe@x.com", True)

@@ -56,6 +56,9 @@ body{
     color: var(--text) !important;
 }
 .header{
+    position: sticky;        /* keep the title + hamburger menu reachable while scrolling */
+    top: 0;
+    z-index: 10;             /* above content + scan-fab(9); below open sidebar/loader/scanner */
     text-align: center;
     border-bottom: 2px solid rgba(201, 0, 205, 0.55);
     box-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
@@ -131,6 +134,10 @@ body{
     text-align: center;
     color: var(--pumpkin);
     text-shadow: 0 0 12px rgba(255, 185, 79, 0.40);
+}
+.remind-blurb{
+    margin: 0 0 4px 0;
+    color: var(--text-muted);
 }
 
 /* outer per-page wrappers: drop the old bright-green fills, let cards carry it */
@@ -423,6 +430,7 @@ hr{
 #mySidebar{
     display: none;          /* JS sets this to flex on open (column layout) */
     flex-direction: column;
+    z-index: 30;            /* above the sticky header (10) so the open menu covers it */
 }
 #cameraFileInput{
     display: none;

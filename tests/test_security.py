@@ -7,7 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.common.security import constantTimeEquals, verifyTurnstile, escapeHtml
+from src.common.security import (constantTimeEquals, verifyTurnstile, escapeHtml,
+                                  makeUnsubscribeToken, verifyUnsubscribeToken)
 
 
 # --- constantTimeEquals ---------------------------------------------------
@@ -80,3 +81,32 @@ def test_escape_html_plain_text_unchanged():
 def test_escape_html_ampersand():
     result = escapeHtml("Alice & Bob")
     assert "&amp;" in result
+
+
+# --- unsubscribe token ----------------------------------------------------
+
+def test_unsubscribe_token_round_trips():
+    token = makeUnsubscribeToken("secret", "Player@X.com")
+    assert verifyUnsubscribeToken("secret", "Player@X.com", token) is True
+
+
+def test_unsubscribe_token_is_case_and_space_insensitive():
+    # the link carries one spelling; verification normalizes both sides
+    token = makeUnsubscribeToken("secret", "Player@X.com")
+    assert verifyUnsubscribeToken("secret", "  player@x.com ", token) is True
+
+
+def test_unsubscribe_token_rejects_tampered_or_empty_token():
+    token = makeUnsubscribeToken("secret", "a@x.com")
+    assert verifyUnsubscribeToken("secret", "a@x.com", token + "0") is False
+    assert verifyUnsubscribeToken("secret", "a@x.com", "") is False
+
+
+def test_unsubscribe_token_rejects_other_email():
+    token = makeUnsubscribeToken("secret", "a@x.com")
+    assert verifyUnsubscribeToken("secret", "b@x.com", token) is False
+
+
+def test_unsubscribe_token_rejects_wrong_secret():
+    token = makeUnsubscribeToken("secret", "a@x.com")
+    assert verifyUnsubscribeToken("other-secret", "a@x.com", token) is False

@@ -10,6 +10,17 @@
             </div>
         </div>
         <hr>
+        <div class="forms">
+            <h3 class="welcome">Don't miss next season</h3>
+            <p class="remind-blurb">The Long Night returns next October. Drop your email and we'll remind you the day it opens.</p>
+            <form action="{{url_for('views.remind')}}" method="post">
+                <p><input class="input" type="email" name="email" required="true" placeholder="Email"></p>
+                <input type="hidden" name="csrfToken" value="{{csrfToken}}">
+                {% if turnstileSiteKey %}<div class="cf-turnstile" data-sitekey="{{turnstileSiteKey}}"></div>{% endif %}
+                <p><input class="button" type="submit" value="Remind Me"></p>
+            </form>
+        </div>
+        <hr>
         <div class="w3-cell-top-score">
             <div class="w3-cell w3-container">
                 <h3 class="w3-cell-top-score-text">Top Score: <span class="topScore">{{topScore}}</span></h3>

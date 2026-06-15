@@ -3,6 +3,7 @@ import logging
 import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
+from urllib.parse import quote
 
 from src.api.properties import APIPropertiesManager
 from src.common.firebase import FirebaseService
@@ -16,7 +17,7 @@ from src.common.eventstate import (
     seasonOpenDatetime,
     seasonOpenString,
 )
-from src.common.security import escapeHtml
+from src.common.security import escapeHtml, makeUnsubscribeToken
 #endregion
 
 # Self-restarting yearly season engine (API only -- single writer).
@@ -34,7 +35,8 @@ from src.common.security import escapeHtml
 #
 # reconcileEventLifecycle() runs on an interval and is the single driver: at close it
 # emails final results; at the next season open (Oct 1) it archives the finished season
-# to {EVENT_ROOT}-{year}, opens a fresh one, and emails past players. It is idempotent
+# to {EVENT_ROOT}-{year}, opens a fresh one, and emails the reminder list (past players +
+# opt-ins, minus opt-outs). It is idempotent
 # and self-heals across restarts -- it re-derives state from meta + now, guarded by the
 # emailed flags, so nothing depends on hitting an exact instant.
 
@@ -90,10 +92,30 @@ def getAllPastParticipantEmails():
     return list(emails.values())
 
 
+def getSeasonStartRecipients():
+    # Who gets the season-start blast: every past player UNION explicit "remind me"
+    # opt-ins, MINUS explicit opt-outs, deduped case-insensitively (first-seen spelling
+    # kept). With no reminder records this is exactly getAllPastParticipantEmails(), so
+    # default behavior is unchanged; the reminders list only adds new opt-ins and removes
+    # players who unsubscribed.
+    subscriptions = queries.getReminderSubscriptions()   # {lower: (email, status)}
+    recipients = {}                                      # lower -> spelling to send to
+    for email in getAllPastParticipantEmails():
+        recipients.setdefault(email.lower(), email)
+    for lower, (email, status) in subscriptions.items():
+        if status == "subscribed":
+            recipients.setdefault(lower, email)
+    optedOut = {lower for lower, (_email, status) in subscriptions.items()
+                if status == "unsubscribed"}
+    return [spelling for lower, spelling in recipients.items() if lower not in optedOut]
+
+
 def sendSeasonStartEmail(year):
-    # Announce a fresh season to every past player. Mirrors emailResults' SMTP pattern
-    # (one connection, loop recipients) and reuses queries.styledEmail for theming.
-    recipients = queries.resolveRecipients(getAllPastParticipantEmails())
+    # Announce a fresh season to every reminder recipient (past players + opt-ins, minus
+    # opt-outs). Mirrors emailResults' SMTP pattern (one connection, loop recipients) and
+    # reuses queries.styledEmail for theming. Each email carries a per-recipient
+    # unsubscribe link so the body is themed inside the loop.
+    recipients = queries.resolveRecipients(getSeasonStartRecipients())
     if not recipients:
         return
 
@@ -102,6 +124,7 @@ def sendSeasonStartEmail(year):
     emailSender = APIPropertiesManager.EMAIL_SENDER
     emailPassword = APIPropertiesManager.EMAIL_PASSWORD
     webAppHost = APIPropertiesManager.WEBAPP_HOST
+    apiKey = APIPropertiesManager.API_KEY
 
     # what they're playing for, when a gift card is configured for this season
     giftCard = queries.getActiveGiftCard(year)
@@ -124,18 +147,31 @@ def sendSeasonStartEmail(year):
         f'<p style="margin:0 0 14px 0;">Play here: {webAppHost}</p>'
         '<p style="margin:8px 0 0 0;">See you out there.</p>'
     )
-    body = queries.styledEmail(content)
 
     server = smtplib.SMTP_SSL(emailHost, emailPort)
     server.login(emailSender, emailPassword)
     for email in recipients:
+        # Per-recipient unsubscribe link, authed by an HMAC token so it can't be used to
+        # unsubscribe anyone else (see security.makeUnsubscribeToken). The link lands on a
+        # confirm page that POSTs the actual opt-out, so a link prefetch can't opt anyone out.
+        unsubscribeUrl = (webAppHost + "/unsubscribe/?email=" + quote(email, safe="")
+                          + "&token=" + makeUnsubscribeToken(apiKey, email))
+        footer = (
+            '<p style="margin:18px 0 0 0;font-size:12px;color:#777777;">'
+            "You're getting this season-opening reminder because you're on The Long Night's "
+            'reminder list. This only affects these once-a-year reminders -- your game and '
+            'results emails are never affected. '
+            f'<a href="{escapeHtml(unsubscribeUrl)}" style="color:#777777;">'
+            'Unsubscribe from season reminders</a>.</p>'
+        )
+        body = queries.styledEmail(content + footer)
         msg = MIMEText(body, 'html')
         msg['Subject'] = "The Long Night returns -- a new season has begun!"
         msg['From'] = emailSender
         msg['To'] = email
         server.sendmail(emailSender, [email], msg.as_string())
     server.quit()
-    logger.info("Sent season-start email for %s to %d past players", year, len(recipients))
+    logger.info("Sent season-start email for %s to %d recipients", year, len(recipients))
 
 
 def rolloverEvent(year):
@@ -151,7 +187,13 @@ def rolloverEvent(year):
             "scoreboard": node.get("scoreboard") or {},
         })
         logger.info("Archived season %s to %s", year, archiveKey)
-    FirebaseService.set([EVENT_ROOT], {"meta": _seasonMeta(year + 1, startEmailed=False)})
+    freshNode = {"meta": _seasonMeta(year + 1, startEmailed=False)}
+    # The reminder opt-in/opt-out list is season-independent -- carry it forward across
+    # the reset (only the players/scoreboard get archived, never the reminders).
+    reminders = node.get("reminders")
+    if reminders:
+        freshNode["reminders"] = reminders
+    FirebaseService.set([EVENT_ROOT], freshNode)
     logger.info("Opened fresh season %s", year + 1)
 
 
@@ -169,7 +211,7 @@ def reconcileEventLifecycle(now=None):
         year += 1
         meta = _getMeta()
 
-    # Season-start announcement to past players -- once per open season.
+    # Season-start announcement to the reminder list -- once per open season.
     if eventIsOpen(meta["openTime"], meta["closeTime"], now) and not meta.get("startEmailed"):
         try:
             sendSeasonStartEmail(year)

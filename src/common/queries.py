@@ -4,6 +4,7 @@ import random
 import smtplib
 import os
 import base64
+import hashlib
 from io import BytesIO
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
@@ -182,11 +183,48 @@ def addParticipant(name, email, hashedPassword):
         server.sendmail(emailSender, emailReceivers, msg.as_string())
         server.quit()
 
+        # Signing up (re)enlists you in the season-reminder list: it clears any prior
+        # unsubscribe, so a returning player who once opted out is opted back in simply by
+        # playing again. (You can unsubscribe again from any season-start email.)
+        setReminderSubscription(email, True)
+
         return (userKey, encodedImage)
 
 def updateParticipant(userKey, email, hashedPassword):
     FirebaseService.set([EVENT_ROOT, "users", userKey, "email"], email)
-    FirebaseService.set([EVENT_ROOT, "users", userKey, "hashedPassword"], hashedPassword)    
+    FirebaseService.set([EVENT_ROOT, "users", userKey, "hashedPassword"], hashedPassword)
+
+# --- season-reminder subscription list ------------------------------------------------
+# A persistent opt-in / opt-out list for the season-start blast, living at
+# {EVENT_ROOT}/reminders (namespaced so QA stays isolated, and carried across the yearly
+# rollover -- see lifecycle.rolloverEvent). Each record is keyed by a hash of the
+# normalized email so repeat clicks are idempotent (one record per address, no dupes, no
+# index needed) and stores the original spelling for display/sending.
+
+def _reminderKey(email):
+    return hashlib.sha256((email or "").strip().lower().encode()).hexdigest()
+
+def setReminderSubscription(email, subscribed):
+    # Record a "remind me on Oct 1" opt-in (subscribed=True) or an unsubscribe
+    # (subscribed=False). Overwrites any prior record for the same address, so a player
+    # can freely flip between the two. Blank email is a no-op.
+    email = (email or "").strip()
+    if not email:
+        return
+    status = "subscribed" if subscribed else "unsubscribed"
+    FirebaseService.set([EVENT_ROOT, "reminders", _reminderKey(email)],
+                        {"email": email, "status": status})
+
+def getReminderSubscriptions():
+    # {lowercased email: (originalEmail, status)} for every reminder record. Empty when
+    # the node doesn't exist yet.
+    records = FirebaseService.get([EVENT_ROOT, "reminders"]).val() or {}
+    subscriptions = {}
+    for record in records.values():
+        email = (record.get("email") or "").strip()
+        if email:
+            subscriptions[email.lower()] = (email, record.get("status"))
+    return subscriptions
 
 def resolveRecipients(recipients):
     # QA safety net: when EMAIL_OVERRIDE_RECIPIENT is set, redirect ALL outgoing mail to
