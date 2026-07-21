@@ -11,7 +11,7 @@ opencv-python==4.13.0.92
 # qrcode's recommended image backend (was previously present transitively via the
 # torch/ultralytics stack). Required so qrcode.make(...).save(path) keeps working
 # for the per-user QR codes in queries.py.
-Pillow==12.2.0
+Pillow==12.3.0
 qrcode==7.4.2
 # Pinned to clear PYSEC-2023-74 / CVE-2024-35195 / CVE-2024-47081 / CVE-2026-25645.
 # With Pyrebase4 replaced by firebase-admin, urllib3 is no longer capped at <2 and
