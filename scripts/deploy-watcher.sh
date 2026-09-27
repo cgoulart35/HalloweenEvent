@@ -1,6 +1,6 @@
 #!/bin/sh
 # Poll GHCR for new prod images and redeploy when one appears.
-# Started at boot from /etc/rc.local (see scripts/start.sh). Detection here; mutation in deploy.sh.
+# Run at boot by the halloween-event-deploy-watcher systemd service (logs: journalctl -u halloween-event-deploy-watcher). Detection here; mutation in deploy.sh.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 COMPOSE="docker compose -f docker-compose-prod.yml"

@@ -92,7 +92,7 @@ nothing redeploys, so just confirm `test` + `audit` passed and the merge landed,
 Otherwise give CI a few minutes to build & publish the arm64 image plus one watcher interval, then
 confirm the whole chain:
 - CI **publish** job succeeded (`gh run list` / `gh run view` on `master`);
-- the Pi watcher deployed it — `tail Logs/deploy-watcher.log` shows "new image detected — deploying" /
+- the Pi watcher deployed it — `journalctl -u halloween-event-deploy-watcher -n 50 --no-pager` shows "new image detected — deploying" /
   "deploy complete"; `docker compose -f docker-compose-prod.yml ps` shows both `Up`; `docker inspect`
   shows the GHCR `:latest` image; the deployed `VERSION` matches; no startup tracebacks (or just run
   **`/prod-logs`**). Expect the watcher to have moved the local checkout onto `master`.

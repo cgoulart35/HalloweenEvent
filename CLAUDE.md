@@ -219,8 +219,8 @@ anymore (GPUH now deploys only GBot).
   **Append a line here whenever a future review flags something we decide to accept** — this
   list is how the reviewer "learns" what to ignore (the prompt in `claude-review.yml` points
   at it).
-- **Deploy (Pi):** `scripts/deploy-watcher.sh`, started at boot from `/etc/rc.local` via
-  `scripts/start.sh`, polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
+- **Deploy (Pi):** `scripts/deploy-watcher.sh`, run at boot by the `halloween-event-deploy-watcher`
+  systemd service (logs: `journalctl -u halloween-event-deploy-watcher`), polls GHCR every `DEPLOY_POLL_INTERVAL`s (default 120) and — when a new image
   digest appears — runs `scripts/deploy.sh`: `git fetch` + `git checkout -f master` +
   `git reset --hard origin/master`, then `docker compose -f docker-compose-prod.yml pull && up -d`
   (+ `docker image prune -f`). The trigger is the **published image, not the commit**, so it can't
